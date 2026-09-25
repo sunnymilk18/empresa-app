@@ -155,6 +155,23 @@ Queda escuchando en `http://localhost:5173`.
   independiente de la base de datos de la auth-api — no se comparte ni se
   accede directamente a ella.
 
+## Estado actual de validación de la API key
+
+Durante la validación local de la demo, la API key de `auth-2fa-api-go`
+funcionó inicialmente, pero después dejó de validarse y la auth-api respondió
+con errores `401` al intentar autenticar. Este bloqueo afecta el flujo real de
+registro/login/OTP, aunque la arquitectura del proyecto y la integración con el
+backend quedan correctas.
+
+La causa más probable es que la clave haya sido invalidada, rota o rotada por la
+API externa, o que la cabecera `X-API-Key` deje de ser aceptada por el servicio.
+En ese caso, la solución es regenerar la API key en el proveedor, actualizar el
+valor en `backend/.env` y probar nuevamente el flujo completo desde el backend.
+
+> El frontend nunca debe contener la API key. La validación debe seguir existiendo
+> solo del lado del backend, y la clave debe renovarse si el servicio externo la
+> invalida.
+
 ## Notas
 
 - El backend ya sabe proxyar `password-reset` (con UI en `/forgot-password`)
