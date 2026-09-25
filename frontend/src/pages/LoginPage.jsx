@@ -1,0 +1,91 @@
+import { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { api } from '../api';
+
+export function LoginPage() {
+  const navigate = useNavigate();
+  const { state } = useLocation();
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  async function onSubmit(e) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const res = await api.login({ identifier, password });
+      // needs_2fa_setup: true solo pasa en el primer login de la cuenta si
+      // el servidor ofrece más de un método. Elegimos "correo" por
+      // simplicidad, que es el único método que pide este proyecto.
+      if (res.needs_2fa_setup) {
+        await api.sendEmailCode({ login_token: res.login_token });
+      }
+      navigate('/verify-otp', { state: { loginToken: res.login_token } });
+    } catch (err) {
+      setError(err.data?.error || err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="auth-shell">
+      <div className="auth-panel">
+        <div className="auth-brand-panel">
+          <div className="auth-brand-mark">E</div>
+          <p className="auth-brand-kicker">Plataforma empresarial</p>
+          <h1>Bienvenido a la Empresa</h1>
+          <p className="auth-brand-copy">
+            Gestiona clientes, permisos y operaciones con una experiencia segura y moderna.
+          </p>
+          <ul className="auth-points">
+            <li>Acceso seguro</li>
+            <li>Gestión centralizada</li>
+            <li>Operación ágil</li>
+          </ul>
+        </div>
+
+        <div className="auth-card auth-card--welcome">
+          <div className="auth-badge">Acceso</div>
+          <h2>Inicia sesión</h2>
+          <p className="auth-subtitle">Rellene los campos para iniciar sesión</p>
+
+          {state?.justVerified && <p className="success">Correo confirmado, ya puedes iniciar sesión.</p>}
+
+          <form onSubmit={onSubmit} className="form">
+            <label>
+              Email, usuario o RUT
+              <input required value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
+            </label>
+            <label>
+              Contraseña
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </label>
+
+            {error && <p className="error">{error}</p>}
+
+            <button type="submit" disabled={loading}>
+              {loading ? 'Entrando...' : 'Iniciar sesión'}
+            </button>
+          </form>
+
+          <div className="auth-links">
+            <p className="muted">
+              ¿No tienes cuenta? <Link to="/register">Regístrate</Link>
+            </p>
+            <p className="muted">
+              <Link to="/forgot-password">¿Olvidaste tu contraseña?</Link>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
