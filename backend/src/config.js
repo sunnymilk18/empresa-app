@@ -15,8 +15,9 @@ const config = {
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
   authApiUrl: required('AUTH_API_URL').replace(/\/+$/, ''),
   authApiKey: required('AUTH_API_KEY'),
-  databasePath: process.env.DATABASE_PATH || './data/empresa.db',
-  databaseUrl: process.env.DATABASE_URL || process.env.DATABASE_PATH || './data/empresa.db',
+  // Tiempo máximo de espera de cada llamada a la auth-api (ms).
+  authApiTimeoutMs: Number(process.env.AUTH_API_TIMEOUT_MS) || 10000,
+  databaseUrl: required('DATABASE_URL'),
 };
 
 module.exports = config;

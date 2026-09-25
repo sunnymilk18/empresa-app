@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { api } from '../api';
+import { api, configureAuth, isUnavailable } from '../api';
 
 const AuthContext = createContext(null);
 
@@ -26,19 +26,58 @@ export function AuthProvider({ children }) {
   const [tokens, setTokens] = useState(() => loadSession());
   const [profile, setProfile] = useState(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
+  // Aviso para mostrar en /login cuando se cierra la sesión por una razón
+  // que la persona debe conocer (p. ej. su cuenta fue bloqueada).
+  const [sessionNotice, setSessionNotice] = useState('');
 
   const setSession = useCallback((session) => {
     setTokens(session);
     saveSession(session);
   }, []);
 
+  // Le indica a api.js cómo leer y actualizar la sesión al renovar tokens.
+  // Se lee de localStorage (no del estado) para ver lo que otra pestaña
+  // haya guardado.
+  useEffect(() => {
+    configureAuth({
+      getSession: loadSession,
+      onRefreshed: (session) => setSession(session),
+      onExpired: () => {
+        setSession(null);
+        setProfile(null);
+        setSessionNotice('Tu sesión expiró. Vuelve a iniciar sesión.');
+      },
+    });
+  }, [setSession]);
+
+  // Mantiene sincronizadas las pestañas: si otra renueva los tokens o cierra
+  // sesión, esta toma el cambio.
+  useEffect(() => {
+    function onStorage(e) {
+      if (e.key !== STORAGE_KEY) return;
+      const next = loadSession();
+      setTokens(next);
+      if (!next) setProfile(null);
+    }
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
   const loadProfile = useCallback(async (accessToken) => {
     try {
       const me = await api.me(accessToken);
       setProfile(me);
+      setSessionNotice('');
       return me;
-    } catch {
+    } catch (err) {
       setProfile(null);
+      if (isUnavailable(err)) {
+        // Servicio caído: conservamos la sesión guardada para que al recargar,
+        // cuando vuelva, no haya que repetir el login completo.
+        setSessionNotice(err.data?.error || err.message);
+        return null;
+      }
+      if (err.data?.code === 'account_blocked') setSessionNotice(err.data.error);
       setSession(null);
       return null;
     }
@@ -54,15 +93,24 @@ export function AuthProvider({ children }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Vuelve a pedir el perfil (p. ej. tras activar o desactivar la app
+  // autenticadora, para que se refleje el método actual).
+  async function reloadProfile() {
+    const current = loadSession();
+    if (current?.access_token) await loadProfile(current.access_token);
+  }
+
   async function completeLogin(tokenResponse) {
     setSession(tokenResponse);
     await loadProfile(tokenResponse.access_token);
   }
 
   async function logout() {
-    if (tokens?.refresh_token) {
+    // El refresh_token más reciente puede haberlo guardado otra pestaña.
+    const current = loadSession() ?? tokens;
+    if (current?.refresh_token) {
       try {
-        await api.logout({ refresh_token: tokens.refresh_token });
+        await api.logout({ refresh_token: current.refresh_token });
       } catch {
         // best-effort: igual limpiamos la sesión local
       }
@@ -76,7 +124,9 @@ export function AuthProvider({ children }) {
     profile,
     loadingProfile,
     isAuthenticated: Boolean(tokens?.access_token && profile),
+    sessionNotice,
     completeLogin,
+    reloadProfile,
     logout,
   };
 

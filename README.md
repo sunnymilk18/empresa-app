@@ -1,121 +1,217 @@
 # empresa-app
 
-Proyecto demo de una empresa ficticia que **consume** `auth-2fa-api-go` como
-cliente externo — no reimplementa su lógica de autenticación ni su base de
-datos. Incluye un flujo real de registro/login/2FA por correo y un CRUD de
-negocio (`clientes`) con roles propios (`admin` / `user`).
+Sistema de administración de una empresa ficticia que **consume**
+`auth-2fa-api-go` como cliente externo: no reimplementa su lógica de
+autenticación ni accede a su base de datos. Incluye el flujo real de
+registro, login y segundo factor (código por correo o app autenticadora), y
+un panel para un **superadmin**: usuarios, roles, bloqueos, historial de
+inicios de sesión, registro de actividad y un resumen del sistema.
 
 ## Estructura
 
 ```
 empresa-app/
-├── backend/          # Node + Express + SQLite (empresa-backend)
+├── backend/          # Node + Express + PostgreSQL (empresa-backend)
 │   ├── src/
 │   │   ├── server.js
 │   │   ├── config.js
-│   │   ├── db.js               # esquema SQLite propio de la empresa
-│   │   ├── middleware/auth.js  # verifica el JWT de la auth-api (JWKS)
-│   │   ├── lib/localUsers.js   # roles locales (admin/user)
+│   │   ├── db.js                 # conexión, esquema y migraciones de la base propia
+│   │   ├── middleware/auth.js    # verifica el JWT de la auth-api (JWKS) + bloqueo
+│   │   ├── lib/
+│   │   │   ├── authApi.js        # cliente HTTP hacia la auth-api (timeout, errores)
+│   │   │   ├── localUsers.js     # usuarios locales: roles, bloqueo, búsqueda
+│   │   │   ├── audit.js          # registro de actividad
+│   │   │   ├── loginHistory.js   # historial de inicios de sesión
+│   │   │   ├── stats.js          # resumen del dashboard
+│   │   │   ├── blocked.js        # respuesta para cuentas bloqueadas
+│   │   │   └── asyncHandler.js   # errores de handlers async -> middleware de errores
 │   │   └── routes/
-│   │       ├── auth.js         # proxy hacia la auth-api (oculta la API key)
-│   │       ├── me.js           # perfil + administración de roles
-│   │       └── clientes.js     # CRUD protegido
+│   │       ├── auth.js           # proxy hacia la auth-api (oculta la API key)
+│   │       └── me.js             # perfil + panel del superadmin
 │   └── .env.example
 └── frontend/         # React + Vite
     ├── src/
-    │   ├── auth/                # AuthContext, ProtectedRoute
-    │   ├── pages/                # Register, VerifyEmail, Login, VerifyOtp, Dashboard, Clientes
+    │   ├── auth/                 # AuthContext (sesión y renovación), ProtectedRoute
+    │   ├── components/           # Navbar, AdminSummary, SecurityCard, TotpSetup
+    │   ├── pages/                # login, registro, segundo factor, dashboard, usuarios, actividad
+    │   ├── utils/                # formato de RUT, descripción del navegador
     │   └── api.js                # cliente HTTP hacia empresa-backend
     └── .env.example
 ```
 
-`auth-2fa-api-go` **no está en este repo** — ya está desplegada por separado
-y este proyecto solo le hace peticiones HTTP.
+`auth-2fa-api-go` **no está en este repo**: está desplegada por separado y
+este proyecto solo le hace peticiones HTTP.
 
-## Arquitectura del flujo de autenticación
+## Arquitectura
 
 ```
 Frontend (React)  →  empresa-backend (Node)  →  auth-2fa-api-go (externa)
                          │
-                         └──  base SQLite propia (roles + clientes)
+                         └──  base Postgres propia (usuarios locales, actividad, historial)
 ```
 
 El **frontend nunca habla directo con la auth-api** ni conoce su API key.
 Todo pasa por `empresa-backend`, que:
 
 1. Agrega el header `X-API-Key` del lado del servidor al llamar a la auth-api.
-2. Verifica localmente el `access_token` (JWT RS256) que la auth-api emite,
-   usando la clave pública publicada en `/.well-known/jwks.json` — **sin**
-   volver a implementar el login ni el OTP, solo validando la firma.
-3. Resuelve (o crea) el rol de negocio (`admin`/`user`) de esa cuenta en su
-   propia base SQLite, separada por completo de la base de la auth-api.
+2. Verifica localmente el `access_token` (JWT RS256) que emite la auth-api,
+   usando la clave pública publicada en `/.well-known/jwks.json`. No
+   reimplementa el login ni el OTP: solo valida la firma.
+3. Resuelve (o crea) el usuario local de esa cuenta, con su rol y su estado
+   (activo/bloqueado), en su propia base Postgres, separada por completo de
+   la base de la auth-api.
+
+## Flujo de autenticación
+
+1. **Registro** (`/register`): email, usuario, RUT y contraseña.
+2. **Confirmar correo** (`/verify-email`): código que llega por correo.
+3. **Login** (`/login`): email, usuario o RUT + contraseña.
+4. **Elegir segundo factor** (`/elegir-metodo`), **solo en el primer login**
+   de cada cuenta:
+   - **Código por correo**: se envía el código y sigue a `/verify-otp`.
+   - **App autenticadora** (`/configurar-app`): se muestra un código QR (y
+     la clave en texto), la persona lo escanea con Google Authenticator,
+     Microsoft Authenticator o similar, e ingresa el código de 6 dígitos.
+     Al confirmarlo entra directo.
+
+   La elección se guarda en la auth-api recién cuando se completa: si la
+   persona abandona a medias, en el próximo login vuelve a ver esta
+   pantalla. Tiene 5 minutos para completarla (valor por defecto de la
+   auth-api, `OTP_TTL`).
+5. **Siguientes logins**: después de la contraseña va directo a
+   `/verify-otp` (código del correo o de la app). Si es por correo, puede
+   pedir que se reenvíe.
+6. **Desde el dashboard**, cualquier persona puede activar o desactivar la
+   app autenticadora en la tarjeta **Seguridad**.
+
+La sesión se **renueva sola**: el `access_token` dura poco (15 minutos por
+defecto en la auth-api) y, cuando vence, el frontend pide uno nuevo con el
+`refresh_token` (7 días por defecto) sin que la persona lo note. Las
+pestañas abiertas se mantienen sincronizadas. Solo hay que volver a
+iniciar sesión cuando vence el `refresh_token` o al presionar "Salir".
 
 ### Endpoints de la auth-api que se usan
 
-| Método | Endpoint (auth-api)              | Para qué |
+| Método | Endpoint (auth-api) | Para qué |
 |---|---|---|
-| POST | `/auth/register`                 | Crear la cuenta (email, password, username, rut) |
-| POST | `/auth/verify-email/confirm`     | Confirmar el correo con el código recibido |
-| POST | `/auth/verify-email/resend`      | Reenviar el código de confirmación |
-| POST | `/auth/login`                    | Paso 1: valida credenciales, devuelve `login_token` |
-| POST | `/auth/login/send-email-code`    | Solo si el login devuelve `needs_2fa_setup: true` |
-| POST | `/auth/verify-otp`               | Paso 2: valida el código OTP, devuelve `access_token` + `refresh_token` |
-| POST | `/auth/refresh`                  | Renovar el par de tokens |
-| POST | `/auth/logout`                   | Revocar el `refresh_token` |
-| GET  | `/.well-known/jwks.json`         | Clave pública para verificar el JWT localmente |
-| GET  | `/me`                             | Enriquecer el perfil (username, rut) con el `access_token` |
-| POST | `/auth/password-reset/request`   | Pedir código para restablecer contraseña |
-| POST | `/auth/password-reset/confirm`   | Confirmar código + nueva contraseña |
-| POST | `/auth/totp/enroll`              | Iniciar activación de app autenticadora (solo backend, sin UI) |
-| POST | `/auth/totp/confirm`             | Confirmar activación de app autenticadora (solo backend, sin UI) |
-| POST | `/auth/totp/disable`             | Desactivar app autenticadora (solo backend, sin UI) |
+| POST | `/auth/register` | Crear la cuenta (email, password, username, rut) |
+| POST | `/auth/verify-email/confirm` | Confirmar el correo con el código recibido |
+| POST | `/auth/verify-email/resend` | Reenviar el código de confirmación |
+| POST | `/auth/login` | Valida credenciales, devuelve `login_token` (y `needs_2fa_setup` en el primer login) |
+| POST | `/auth/login/send-email-code` | Primer login: elegir código por correo |
+| POST | `/auth/login/resend-code` | Reenviar el código de login por correo |
+| POST | `/auth/verify-otp` | Valida el código (correo o app), devuelve `access_token` + `refresh_token` |
+| POST | `/auth/totp/enroll` | Iniciar la activación de la app autenticadora (devuelve el `otpauth_url` del QR) |
+| POST | `/auth/totp/confirm` | Confirmar la activación con el primer código de la app |
+| POST | `/auth/totp/disable` | Desactivar la app autenticadora (vuelve el código por correo) |
+| POST | `/auth/refresh` | Renovar el par de tokens |
+| POST | `/auth/logout` | Revocar el `refresh_token` |
+| POST | `/auth/password-reset/request` | Pedir código para restablecer contraseña |
+| POST | `/auth/password-reset/confirm` | Confirmar código + nueva contraseña |
+| GET  | `/.well-known/jwks.json` | Clave pública para verificar el JWT localmente |
+| GET  | `/me` | Perfil (username, rut, método de segundo factor) con el `access_token` |
 
 Todas las llamadas `/auth/*` requieren el header `X-API-Key` (lo agrega
-`empresa-backend`, nunca el frontend).
+`empresa-backend`, nunca el frontend). `/auth/totp/*` requiere que la
+auth-api tenga la app autenticadora habilitada (`TOTP_ENCRYPTION_KEY`).
 
-### Roles dentro de la empresa (no en la auth-api)
+## Roles y permisos (en empresa-app, no en la auth-api)
 
-`auth-2fa-api-go` no sabe nada de roles de negocio — solo autentica
-personas. Los roles viven **en `empresa-backend`**, en la tabla
-`local_users` (SQLite), enlazados a la cuenta de la auth-api por su id
-(`sub` del JWT):
+`auth-2fa-api-go` no sabe nada de roles de negocio: solo autentica personas.
+Los roles viven **en `empresa-backend`**, en la tabla `local_users`,
+enlazados a la cuenta de la auth-api por su id (`sub` del JWT).
 
-- La **primera cuenta que se registra en toda la demo** queda como `admin`
-  automáticamente (para poder probar los dos roles sin tocar la base a
-  mano).
-- Todas las cuentas siguientes entran como `user`.
-- Un `admin` puede promover/degradar a otras cuentas desde
-  `PUT /api/local-users/:authUserId/role`.
+- La **primera cuenta de todo el sistema** queda como `superadmin`; todas las
+  siguientes entran como `user`.
+- Una persona aparece en `local_users` recién cuando **completa su primer
+  login** (correo verificado + segundo factor).
+- **Siempre queda al menos un superadmin activo**: nadie puede cambiar su
+  propio rol ni bloquearse a sí mismo, y si dos superadmin actúan al mismo
+  tiempo uno sobre el otro, solo se aplica el primer cambio.
 
-Permisos del CRUD de `clientes` en esta demo:
+| Acción | superadmin | admin | user |
+|---|---|---|---|
+| Dashboard con su perfil y tarjeta Seguridad | ✅ | ✅ | ✅ |
+| Resumen del sistema en el dashboard | ✅ | ❌ | ❌ |
+| Ver usuarios, buscar y filtrar | ✅ | ❌ | ❌ |
+| Cambiar roles de otros | ✅ | ❌ | ❌ |
+| Bloquear / desbloquear cuentas | ✅ | ❌ | ❌ |
+| Ver historial de inicios de sesión | ✅ | ❌ | ❌ |
+| Ver registro de actividad | ✅ | ❌ | ❌ |
 
-| Acción | admin | user |
-|---|---|---|
-| Ver lista / detalle | ✅ | ✅ |
-| Crear | ✅ | ❌ |
-| Editar | ✅ | ❌ |
-| Eliminar | ✅ | ❌ |
+> Hoy el rol `admin` no tiene permisos distintos a `user`. Está reservado
+> para las funciones que se agreguen más adelante.
+
+## Panel del superadmin
+
+- **Resumen** (en `/dashboard`): total de usuarios, cuántos hay por rol,
+  bloqueados, nuevos y activos en los últimos 7 días, inicios de sesión
+  exitosos e intentos de cuentas bloqueadas en los últimos 7 días, y los 5
+  inicios de sesión más recientes. Las tarjetas llevan a la lista de
+  usuarios ya filtrada.
+- **Usuarios** (`/usuarios`): búsqueda por email, usuario o RUT (con o sin
+  puntos y guion), filtros por rol y estado, y paginación de 20 en 20. Los
+  filtros quedan en la URL, así se conservan al recargar o al volver desde
+  el detalle.
+- **Detalle de un usuario** (`/usuarios/:id`): sus datos y su historial de
+  inicios de sesión (fecha, resultado, método, IP y navegador).
+- **Bloqueo de cuentas**: una cuenta bloqueada no puede usar empresa-app
+  aunque su contraseña y su código sean correctos (su sesión en la auth-api
+  se revoca en el acto). El bloqueo es solo para empresa-app: no afecta
+  otros sistemas que usen la misma auth-api.
+- **Actividad** (`/actividad`): registro de quién hizo qué, a quién, cuándo
+  y desde qué IP. Incluye cambios de rol, bloqueos y desbloqueos, y cuando
+  alguien activa o desactiva la app autenticadora. Solo se agregan filas:
+  no se puede editar ni borrar.
+
+## Endpoints propios de empresa-backend
+
+| Método | Endpoint | Quién | Para qué |
+|---|---|---|---|
+| GET | `/health` | público | Estado del backend |
+| POST | `/api/auth/*` | público* | Proxy hacia la auth-api (register, login, verify-otp, totp, etc.) |
+| GET | `/api/me` | con sesión | Perfil + rol local |
+| GET | `/api/stats` | superadmin | Resumen del dashboard |
+| GET | `/api/local-users?q=&role=&status=&page=` | superadmin | Lista de usuarios con búsqueda, filtros y paginación |
+| PUT | `/api/local-users/:authUserId/role` | superadmin | Cambiar rol |
+| PUT | `/api/local-users/:authUserId/blocked` | superadmin | Bloquear / desbloquear |
+| GET | `/api/local-users/:authUserId/logins` | superadmin | Datos + historial de inicios de sesión |
+| GET | `/api/audit-log` | superadmin | Registro de actividad |
+
+\* Excepto activar o desactivar la app autenticadora desde el perfil
+(`/api/auth/totp/*` sin `login_token`), que requiere sesión.
 
 ## Requisitos previos
 
 - Node.js 18 o superior (usa `fetch` nativo)
-- La auth-api ya desplegada y accesible, con una API key válida (`X-API-Key`)
+- Una base PostgreSQL accesible (local o gestionada, p. ej. Neon). Las
+  tablas se crean y actualizan solas al arrancar el backend; solo hay que
+  crear la base vacía.
+- La auth-api desplegada y accesible, con una API key válida (`X-API-Key`)
 
 ## Instalación y uso local
 
-### 1. Backend
+### 1. Base de datos
+
+Crea una base vacía (el nombre es a elección, p. ej. `empresa_db`):
+
+```bash
+createdb -U postgres -h localhost empresa_db
+```
+
+### 2. Backend
 
 ```bash
 cd backend
 cp .env.example .env
-# completa AUTH_API_URL y AUTH_API_KEY con tus valores reales
+# completa AUTH_API_URL, AUTH_API_KEY y DATABASE_URL con tus valores reales
 npm install
 npm run dev
 ```
 
 Queda escuchando en `http://localhost:4000`.
 
-### 2. Frontend
+### 3. Frontend
 
 ```bash
 cd frontend
@@ -126,60 +222,65 @@ npm run dev
 
 Queda escuchando en `http://localhost:5173`.
 
-### 3. Probar el flujo
+### 4. Probar el flujo
 
-1. Abre `http://localhost:5173/register` y crea una cuenta (email,
-   usuario, rut, contraseña).
-2. Revisa el correo y confirma el código en `/verify-email`.
-3. Inicia sesión en `/login` con email/usuario/rut + contraseña.
-4. Ingresa el código OTP que llega por correo en `/verify-otp`.
-5. Ya en `/dashboard` verás tu perfil (traído de la auth-api) y tu rol
-   local. La **primera cuenta creada es `admin`**; regístrate con una
-   segunda cuenta para ver la vista de `user` (solo lectura) en
-   `/clientes`.
+1. Abre `http://localhost:5173/register` y crea una cuenta.
+2. Confirma el código que llega por correo en `/verify-email`.
+3. Inicia sesión en `/login` y elige tu segundo factor (correo o app).
+4. En `/dashboard` verás tu perfil, tu rol y la tarjeta Seguridad. La
+   **primera cuenta es `superadmin`**: verás también el resumen y los
+   enlaces a **Usuarios** y **Actividad**.
+5. Registra una segunda cuenta y completa su login: aparecerá en
+   **Usuarios** como `user`, y podrás cambiarle el rol o bloquearla.
+
+## Resistencia a fallas
+
+- Si la auth-api **no responde, tarda más de 10 s o responde algo inválido**
+  (p. ej. una página de error de un proxy), el backend **no se cae**:
+  responde `503` con un mensaje claro y el frontend **conserva la sesión**
+  para que, al volver el servicio, baste con recargar.
+- Mientras la auth-api está caída, las sesiones abiertas siguen funcionando
+  si el backend ya tenía guardada su clave pública, y `/api/me` usa el
+  usuario y RUT guardados en la base propia.
+- Pueden arrancar **varias copias del backend a la vez** contra la misma
+  base: la puesta al día de la base se hace por turnos.
 
 ## Seguridad
 
 - **La API key de la auth-api (`AUTH_API_KEY`) vive solo en
   `backend/.env`**, nunca en el frontend ni en el navegador. En esta demo
   local está en un `.env` plano por simplicidad; en producción debería
-  venir de un secret manager (Vault, AWS Secrets Manager, variables de
-  entorno del hosting, etc.), nunca commiteado ni servido al cliente.
-- El `access_token` se verifica **localmente** vía JWKS (no reimplementa
-  la lógica de la auth-api, solo valida la firma RS256 que ella ya emitió).
+  venir de un gestor de secretos (Vault, AWS Secrets Manager, variables de
+  entorno del hosting, etc.), nunca commiteada ni servida al cliente. Lo
+  mismo aplica a la contraseña de la base en `DATABASE_URL`.
+- El `access_token` se verifica **localmente** vía JWKS (no reimplementa la
+  lógica de la auth-api, solo valida la firma RS256 que ella ya emitió).
+- El **código QR** de la app autenticadora se genera **dentro del
+  navegador**: la clave secreta nunca se envía a servicios externos.
 - Para esta demo, el frontend guarda `access_token`/`refresh_token` en
-  `localStorage` (simple de levantar en local). En una app de producción
-  real, lo más seguro es que el `refresh_token` viva en una cookie
-  `httpOnly` puesta por `empresa-backend`, no accesible desde JavaScript.
-- La base de datos de `empresa-backend` (SQLite) es completamente
-  independiente de la base de datos de la auth-api — no se comparte ni se
-  accede directamente a ella.
+  `localStorage`. En producción, lo más seguro es que el `refresh_token`
+  viva en una cookie `httpOnly` puesta por `empresa-backend`, no accesible
+  desde JavaScript.
+- La base de datos de `empresa-backend` es completamente independiente de
+  la base de la auth-api: no se comparte ni se accede directamente a ella.
+- **Detrás de un proxy** (Nginx, Cloudflare, etc.) hay que configurar
+  `trust proxy` en Express; si no, el historial y la actividad guardan la
+  IP del proxy en vez de la de cada persona.
 
-## Estado actual de validación de la API key
+## Limitaciones conocidas
 
-Durante la validación local de la demo, la API key de `auth-2fa-api-go`
-funcionó inicialmente, pero después dejó de validarse y la auth-api respondió
-con errores `401` al intentar autenticar. Este bloqueo afecta el flujo real de
-registro/login/OTP, aunque la arquitectura del proyecto y la integración con el
-backend quedan correctas.
-
-La causa más probable es que la clave haya sido invalidada, rota o rotada por la
-API externa, o que la cabecera `X-API-Key` deje de ser aceptada por el servicio.
-En ese caso, la solución es regenerar la API key en el proveedor, actualizar el
-valor en `backend/.env` y probar nuevamente el flujo completo desde el backend.
-
-> El frontend nunca debe contener la API key. La validación debe seguir existiendo
-> solo del lado del backend, y la clave debe renovarse si el servicio externo la
-> invalida.
-
-## Notas
-
-- El backend ya sabe proxyar `password-reset` (con UI en `/forgot-password`)
-  y `TOTP` (`enroll`/`confirm`/`disable`, sin UI — requiere que la auth-api
-  tenga `TOTP_ENCRYPTION_KEY` configurada; si no, esos endpoints devuelven
-  404 tal cual la auth-api).
-- `auth-2fa-api-go` puede tener habilitados otros métodos de 2FA
-  (notificación push) o dispositivos de confianza, que quedan fuera del
-  alcance de esta demo.
+- **Si alguien pierde el celular con la app autenticadora activa, no podrá
+  entrar**: la auth-api no ofrece códigos de respaldo ni una forma de que
+  un administrador de empresa-app la desactive. La pantalla de elección y
+  la tarjeta Seguridad lo advierten.
+- En la pantalla del código, la auth-api no indica si la cuenta usa correo
+  o app, por eso el texto menciona ambos.
+- El historial de inicios de sesión y la actividad **crecen sin límite**;
+  más adelante conviene borrar registros antiguos.
+- No se registran los intentos con contraseña incorrecta (en ese punto no se
+  sabe con certeza de qué cuenta son); de eso se encarga la auth-api con su
+  bloqueo temporal por intentos fallidos.
+- `auth-2fa-api-go` también ofrece aprobación por notificación push y
+  dispositivos de confianza, que quedan fuera del alcance de este proyecto.
 - Si tu API key fue compartida por accidente en algún lugar público,
   rótala antes de usar este proyecto en algo real.

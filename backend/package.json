@@ -1,7 +1,7 @@
 {
   "name": "empresa-backend",
   "version": "1.0.0",
-  "description": "Backend de la empresa ficticia. Consume auth-2fa-api-go como cliente externo (nunca reimplementa su lógica) y expone un CRUD propio de clientes con roles locales (admin/usuario).",
+  "description": "Backend de la empresa ficticia. Consume auth-2fa-api-go como cliente externo (nunca reimplementa su lógica) y expone un panel de administración propio: roles locales (superadmin/admin/user), bloqueo de cuentas, historial de inicios de sesión y registro de actividad.",
   "type": "commonjs",
   "main": "src/server.js",
   "scripts": {
@@ -12,7 +12,6 @@
     "node": ">=18"
   },
   "dependencies": {
-    "better-sqlite3": "^11.3.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",

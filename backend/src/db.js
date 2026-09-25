@@ -1,106 +1,117 @@
-const path = require('path');
-const fs = require('fs');
+const { Pool } = require('pg');
 const config = require('./config');
 
-function createSqliteDb() {
-  const Database = require('better-sqlite3');
-  const dbPath = path.resolve(config.databasePath);
-  fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+// Base de datos propia de la empresa (PostgreSQL), totalmente separada de la
+// base de la auth-api. La configuración SSL se toma de la propia URL
+// (p. ej. ?sslmode=require en Neon).
+const pool = new Pool({ connectionString: config.databaseUrl });
 
-  const db = new Database(dbPath);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
+const initSql = `
+  CREATE TABLE IF NOT EXISTS local_users (
+    id SERIAL PRIMARY KEY,
+    auth_user_id TEXT NOT NULL UNIQUE,
+    email TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'user',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
 
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS local_users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      auth_user_id TEXT NOT NULL UNIQUE,
-      email TEXT NOT NULL,
-      role TEXT NOT NULL CHECK (role IN ('admin', 'user')) DEFAULT 'user',
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
+  -- Migraciones idempotentes (se pueden correr en cada arranque): datos del
+  -- perfil que se copian de la auth-api al iniciar sesión, el bloqueo de
+  -- cuentas y el rol superadmin.
+  ALTER TABLE local_users ADD COLUMN IF NOT EXISTS username TEXT;
+  ALTER TABLE local_users ADD COLUMN IF NOT EXISTS rut TEXT;
+  ALTER TABLE local_users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ;
+  -- NULL = activo; con fecha = bloqueado desde ese momento.
+  ALTER TABLE local_users ADD COLUMN IF NOT EXISTS blocked_at TIMESTAMPTZ;
+  ALTER TABLE local_users DROP CONSTRAINT IF EXISTS local_users_role_check;
+  ALTER TABLE local_users ADD CONSTRAINT local_users_role_check
+    CHECK (role IN ('superadmin', 'admin', 'user'));
 
-    CREATE TABLE IF NOT EXISTS clientes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nombre TEXT NOT NULL,
-      email TEXT,
-      telefono TEXT,
-      empresa TEXT,
-      notas TEXT,
-      created_by TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-  `);
+  -- Registro de auditoría: solo se agregan filas, nunca se editan ni borran.
+  -- Los emails se copian al momento de la acción para que el registro siga
+  -- siendo legible aunque después cambien.
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id SERIAL PRIMARY KEY,
+    actor_auth_user_id TEXT NOT NULL,
+    actor_email TEXT NOT NULL,
+    action TEXT NOT NULL,
+    target_auth_user_id TEXT,
+    target_email TEXT,
+    details JSONB NOT NULL DEFAULT '{}',
+    ip TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS audit_log_created_at_idx ON audit_log (created_at DESC);
 
-  const prepare = (sql) => {
-    const statement = db.prepare(sql);
-    return {
-      all: (...args) => statement.all(...args),
-      get: (...args) => statement.get(...args),
-      run: (...args) => statement.run(...args),
-    };
-  };
+  -- Historial de inicios de sesión completos (contraseña + OTP/TOTP).
+  -- result: 'success' = entró; 'blocked' = cuenta bloqueada intentando entrar.
+  CREATE TABLE IF NOT EXISTS login_history (
+    id SERIAL PRIMARY KEY,
+    auth_user_id TEXT NOT NULL,
+    email TEXT NOT NULL,
+    result TEXT NOT NULL CHECK (result IN ('success', 'blocked')),
+    method TEXT NOT NULL CHECK (method IN ('otp', 'totp')),
+    ip TEXT,
+    user_agent TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS login_history_user_idx ON login_history (auth_user_id, id DESC);
+`;
 
-  return { prepare, exec: (sql) => db.exec(sql), close: () => db.close() };
+// Pequeña capa tipo "prepared statement" para que las rutas no dependan de
+// pg directamente. Las consultas usan placeholders $1, $2, ...
+const prepare = (sql) => ({
+  all: async (...params) => (await pool.query(sql, params)).rows,
+  get: async (...params) => (await pool.query(sql, params)).rows[0],
+  run: async (...params) => {
+    const res = await pool.query(sql, params);
+    return { rows: res.rows, rowCount: res.rowCount };
+  },
+});
+
+// Ejecuta fn dentro de una transacción: o se aplica todo, o nada.
+// fn recibe query(sql, params) ligado a la misma conexión.
+async function transaction(fn) {
+  const client = await pool.connect();
+  let broken = null;
+  try {
+    await client.query('BEGIN');
+    const result = await fn((sql, params = []) => client.query(sql, params));
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    // Si ni siquiera se puede deshacer, la conexión quedó inservible: se
+    // descarta (release con error) en vez de devolverla al pool. Siempre se
+    // propaga el error original.
+    await client.query('ROLLBACK').catch((rollbackErr) => {
+      broken = rollbackErr;
+    });
+    throw err;
+  } finally {
+    client.release(broken || undefined);
+  }
 }
 
-function createPostgresDb() {
-  const { Pool } = require('pg');
-  const pool = new Pool({
-    connectionString: config.databaseUrl,
-    ssl: { rejectUnauthorized: false },
+// Llave del candado para poner la base al día (distinta a las de
+// localUsers.js; cualquier número fijo sirve).
+const INIT_LOCK = 4242000;
+
+// Pone la base al día al arrancar (tablas, columnas, reglas). Si arrancan
+// varias copias del backend a la vez, cada una espera su turno: la primera
+// aplica los cambios y las demás, al entrar, ven que ya está todo hecho. Sin
+// esto, dos copias creando la misma tabla al mismo tiempo chocan y una se
+// apaga. En Postgres estos cambios son transaccionales: o se aplican todos,
+// o ninguno.
+function init() {
+  return transaction(async (query) => {
+    await query('SELECT pg_advisory_xact_lock($1)', [INIT_LOCK]);
+    await query(initSql);
   });
-
-  const initSql = `
-    CREATE TABLE IF NOT EXISTS local_users (
-      id SERIAL PRIMARY KEY,
-      auth_user_id TEXT NOT NULL UNIQUE,
-      email TEXT NOT NULL,
-      role TEXT NOT NULL CHECK (role IN ('admin', 'user')) DEFAULT 'user',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-
-    CREATE TABLE IF NOT EXISTS clientes (
-      id SERIAL PRIMARY KEY,
-      nombre TEXT NOT NULL,
-      email TEXT,
-      telefono TEXT,
-      empresa TEXT,
-      notas TEXT,
-      created_by TEXT NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    );
-  `;
-
-  const prepare = (sql) => {
-    return {
-      all: async (...args) => {
-        const params = args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
-        const res = await pool.query(sql, params);
-        return res.rows;
-      },
-      get: async (...args) => {
-        const params = args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
-        const res = await pool.query(sql, params);
-        return res.rows[0] ?? undefined;
-      },
-      run: async (...args) => {
-        const params = args.length === 1 && Array.isArray(args[0]) ? args[0] : args;
-        const res = await pool.query(sql, params);
-        return { lastInsertRowid: res.rows?.[0]?.id ?? null, changes: res.rowCount, rowCount: res.rowCount };
-      },
-    };
-  };
-
-  return {
-    prepare,
-    init: async () => pool.query(initSql),
-    exec: async (sql, params = []) => pool.query(sql, params),
-    close: async () => pool.end(),
-  };
 }
 
-const db = config.databaseUrl ? createPostgresDb() : createSqliteDb();
-module.exports = db;
+module.exports = {
+  prepare,
+  transaction,
+  init,
+  close: () => pool.end(),
+};

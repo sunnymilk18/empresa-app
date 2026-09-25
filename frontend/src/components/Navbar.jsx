@@ -17,7 +17,12 @@ export function Navbar() {
       <div className="navbar-brand">Empresa Demo</div>
       <div className="navbar-links">
         <Link to="/dashboard">Dashboard</Link>
-        <Link to="/clientes">Clientes</Link>
+        {profile?.role === 'superadmin' && (
+          <>
+            <Link to="/usuarios">Usuarios</Link>
+            <Link to="/actividad">Actividad</Link>
+          </>
+        )}
       </div>
       <div className="navbar-user">
         <span className={`badge badge-${profile?.role}`}>{profile?.role}</span>

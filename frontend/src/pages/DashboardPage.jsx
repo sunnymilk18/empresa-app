@@ -1,5 +1,8 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { AdminSummary } from '../components/AdminSummary';
+import { SecurityCard } from '../components/SecurityCard';
+import { formatRut } from '../utils/rut';
 
 export function DashboardPage() {
   const { profile } = useAuth();
@@ -14,22 +17,27 @@ export function DashboardPage() {
         <span className={`badge badge-${profile?.role}`}>{profile?.role}</span>
       </div>
 
+      {profile?.role === 'superadmin' && <AdminSummary />}
+
       <div className="cards">
         <div className="card">
           <h2>Perfil del usuario</h2>
           <ul className="kv">
             <li><span>Email</span><span>{profile?.email}</span></li>
             <li><span>Usuario</span><span>{profile?.username}</span></li>
-            <li><span>RUT</span><span>{profile?.rut}</span></li>
-            <li><span>Acceso</span><span>{profile?.totp_enabled ? 'App autenticadora' : 'Correo (OTP)'}</span></li>
+            <li><span>RUT</span><span>{formatRut(profile?.rut)}</span></li>
           </ul>
         </div>
 
-        <div className="card">
-          <h2>Clientes</h2>
-          <p className="muted">Gestiona el recurso de negocio de esta empresa.</p>
-          <Link to="/clientes" className="button-link">Ir a clientes</Link>
-        </div>
+        <SecurityCard />
+
+        {profile?.role === 'superadmin' && (
+          <div className="card">
+            <h2>Usuarios</h2>
+            <p className="muted">Revisa quién ha ingresado al sistema y administra sus roles.</p>
+            <Link to="/usuarios" className="button-link">Ir a usuarios</Link>
+          </div>
+        )}
       </div>
     </div>
   );

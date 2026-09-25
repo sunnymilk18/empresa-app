@@ -7,8 +7,12 @@ import { VerifyEmailPage } from './pages/VerifyEmailPage';
 import { LoginPage } from './pages/LoginPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
 import { VerifyOtpPage } from './pages/VerifyOtpPage';
+import { ElegirMetodoPage } from './pages/ElegirMetodoPage';
+import { ConfigurarAppPage } from './pages/ConfigurarAppPage';
 import { DashboardPage } from './pages/DashboardPage';
-import { ClientesPage } from './pages/ClientesPage';
+import { UsuariosPage } from './pages/UsuariosPage';
+import { UsuarioDetallePage } from './pages/UsuarioDetallePage';
+import { ActividadPage } from './pages/ActividadPage';
 
 export default function App() {
   return (
@@ -22,6 +26,8 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/verify-otp" element={<VerifyOtpPage />} />
+            <Route path="/elegir-metodo" element={<ElegirMetodoPage />} />
+            <Route path="/configurar-app" element={<ConfigurarAppPage />} />
             <Route
               path="/dashboard"
               element={
@@ -31,10 +37,26 @@ export default function App() {
               }
             />
             <Route
-              path="/clientes"
+              path="/usuarios"
               element={
-                <ProtectedRoute>
-                  <ClientesPage />
+                <ProtectedRoute roles={['superadmin']}>
+                  <UsuariosPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/usuarios/:authUserId"
+              element={
+                <ProtectedRoute roles={['superadmin']}>
+                  <UsuarioDetallePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/actividad"
+              element={
+                <ProtectedRoute roles={['superadmin']}>
+                  <ActividadPage />
                 </ProtectedRoute>
               }
             />
