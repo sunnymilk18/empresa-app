@@ -191,8 +191,9 @@ enlazados a la cuenta de la auth-api por su id (`sub` del JWT).
 
 ## Requisitos previos
 
-- Node.js 18.11 o superior (usa `fetch` nativo, y `npm run dev` del backend
-  usa `node --watch`)
+- Node.js 20 o superior. El frontend lo exige (React Router 7); el backend
+  por sí solo funciona desde Node 18.11 (usa `fetch` nativo y `npm run dev`
+  usa `node --watch`).
 - PostgreSQL 9.6 o superior, local o gestionado (p. ej. Neon). Las tablas se
   crean y actualizan solas al arrancar el backend; solo hay que crear la
   base vacía.
@@ -294,8 +295,6 @@ Queda escuchando en `http://localhost:5173`.
 - No se registran los intentos con contraseña incorrecta (en ese punto no se
   sabe con certeza de qué cuenta son); de eso se encarga la auth-api con su
   bloqueo temporal por intentos fallidos.
-- `npm audit` del frontend reporta 2 alertas moderadas en `react-router` /
-  `react-router-dom`; se resuelven actualizando esa dependencia (pendiente).
 - `auth-2fa-api-go` también ofrece aprobación por notificación push y
   dispositivos de confianza, que quedan fuera del alcance de este proyecto.
 - Si tu API key fue compartida por accidente en algún lugar público,
