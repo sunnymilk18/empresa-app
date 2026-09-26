@@ -148,8 +148,10 @@ function likePattern(text) {
   return `%${text.replace(/[\\%_]/g, '\\$&')}%`;
 }
 
-// Lista paginada con búsqueda y filtros, más recientes primero.
-// - q: busca en email, username o rut (el rut con o sin puntos/guion)
+// Lista paginada con búsqueda y filtros, más recientes primero. Cada usuario
+// trae `last_ip`: la IP de su último inicio de sesión registrado.
+// - q: busca en email, username o rut (el rut con o sin puntos/guion) y, si
+//   parece una IP, en todas las IPs desde las que la persona inició sesión
 // - role: 'superadmin' | 'admin' | 'user'
 // - status: 'active' | 'blocked'
 // Devuelve { users, total } (total = cuántos cumplen los filtros).
@@ -170,6 +172,15 @@ async function listLocalUsers({ q, role, status, limit = 20, offset = 0 } = {}) 
       const rutDigits = q.replace(/[^0-9kK]/g, '');
       if (rutDigits) conditions.push(`rut ILIKE ${param(likePattern(rutDigits))}`);
     }
+    // Solo si parece una IP (dígitos/hex con puntos o dos puntos): IPv4 como
+    // "190.22" o IPv6 como "2800:150::1". Busca en todo el historial, no solo
+    // en el último login, para ver todas las cuentas que usaron esa IP.
+    if (/^[0-9a-fA-F.:]+$/.test(q) && /[.:]/.test(q)) {
+      conditions.push(`EXISTS (
+        SELECT 1 FROM login_history lh
+        WHERE lh.auth_user_id = local_users.auth_user_id AND lh.ip ILIKE ${text}
+      )`);
+    }
     where.push(`(${conditions.join(' OR ')})`);
   }
   if (role) where.push(`role = ${param(role)}`);
@@ -178,7 +189,11 @@ async function listLocalUsers({ q, role, status, limit = 20, offset = 0 } = {}) 
 
   // COUNT(*) OVER() trae el total junto con la página, en una sola consulta.
   const sql = `
-    SELECT *, COUNT(*) OVER() AS total_count
+    SELECT *,
+      (SELECT lh.ip FROM login_history lh
+       WHERE lh.auth_user_id = local_users.auth_user_id
+       ORDER BY lh.id DESC LIMIT 1) AS last_ip,
+      COUNT(*) OVER() AS total_count
     FROM local_users
     ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
     ORDER BY created_at DESC, id DESC

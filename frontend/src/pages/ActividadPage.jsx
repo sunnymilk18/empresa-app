@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../auth/AuthContext';
+import { formatIp } from '../utils/ip';
 
 function formatDate(value) {
   return new Date(value).toLocaleString('es-CL');
@@ -88,7 +89,7 @@ export function ActividadPage() {
                   <td style={{ whiteSpace: 'nowrap' }}>{formatDate(e.created_at)}</td>
                   <td>{e.actor_email}</td>
                   <td>{describe(e)}</td>
-                  <td className="muted">{e.ip || '—'}</td>
+                  <td className="muted nowrap">{formatIp(e.ip)}</td>
                 </tr>
               ))}
             </tbody>

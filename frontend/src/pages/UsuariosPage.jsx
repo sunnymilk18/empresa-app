@@ -3,11 +3,21 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { formatRut } from '../utils/rut';
+import { formatIp } from '../utils/ip';
 
 const ROLES = ['superadmin', 'admin', 'user'];
 
+// Sin segundos: en esta tabla no aportan y le quitan espacio a las columnas.
 function formatDate(value) {
-  return value ? new Date(value).toLocaleString('es-CL') : '—';
+  return value
+    ? new Date(value).toLocaleString('es-CL', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : '—';
 }
 
 // Panel del superadmin: personas que completaron el login (correo verificado
@@ -131,7 +141,7 @@ export function UsuariosPage() {
       <div className="toolbar">
         <input
           type="search"
-          placeholder="Buscar por email, usuario o RUT"
+          placeholder="Buscar por email, usuario, RUT o IP"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           aria-label="Buscar usuarios"
@@ -177,8 +187,8 @@ export function UsuariosPage() {
                 <th>Usuario</th>
                 <th>RUT</th>
                 <th>Rol</th>
-                <th>Primer ingreso</th>
                 <th>Último ingreso</th>
+                <th>Última IP</th>
                 <th>Estado</th>
                 <th></th>
               </tr>
@@ -192,7 +202,7 @@ export function UsuariosPage() {
                       <Link to={`/usuarios/${encodeURIComponent(u.auth_user_id)}`}>{u.email}</Link>
                     </td>
                     <td>{u.username || '—'}</td>
-                    <td>{u.rut ? formatRut(u.rut) : '—'}</td>
+                    <td className="nowrap">{u.rut ? formatRut(u.rut) : '—'}</td>
                     <td>
                       {isMe ? (
                         <span className={`badge badge-${u.role}`}>{u.role} (tú)</span>
@@ -208,8 +218,8 @@ export function UsuariosPage() {
                         </select>
                       )}
                     </td>
-                    <td>{formatDate(u.created_at)}</td>
-                    <td>{formatDate(u.last_login_at)}</td>
+                    <td className="nowrap">{formatDate(u.last_login_at)}</td>
+                    <td className="nowrap muted">{formatIp(u.last_ip)}</td>
                     <td>
                       {u.blocked_at ? (
                         <span className="badge badge-blocked" title={`Desde ${formatDate(u.blocked_at)}`}>

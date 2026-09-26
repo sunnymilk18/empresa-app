@@ -149,10 +149,12 @@ enlazados a la cuenta de la auth-api por su id (`sub` del JWT).
   exitosos e intentos de cuentas bloqueadas en los últimos 7 días, y los 5
   inicios de sesión más recientes. Las tarjetas llevan a la lista de
   usuarios ya filtrada.
-- **Usuarios** (`/usuarios`): búsqueda por email, usuario o RUT (con o sin
-  puntos y guion), filtros por rol y estado, y paginación de 20 en 20. Los
-  filtros quedan en la URL, así se conservan al recargar o al volver desde
-  el detalle.
+- **Usuarios** (`/usuarios`): muestra la última IP de cada persona.
+  Búsqueda por email, usuario, RUT (con o sin puntos y guion) o **IP**: al
+  buscar una IP aparecen todas las cuentas que alguna vez iniciaron sesión
+  desde ella, no solo en su último login. Filtros por rol y estado, y
+  paginación de 20 en 20. Los filtros quedan en la URL, así se conservan al
+  recargar o al volver desde el detalle.
 - **Detalle de un usuario** (`/usuarios/:id`): sus datos y su historial de
   inicios de sesión (fecha, resultado, método, IP y navegador).
 - **Bloqueo de cuentas**: una cuenta bloqueada no puede usar empresa-app

@@ -4,6 +4,7 @@ import { api } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { formatRut } from '../utils/rut';
 import { describeUserAgent } from '../utils/userAgent';
+import { formatIp } from '../utils/ip';
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleString('es-CL') : '—';
@@ -102,7 +103,7 @@ export function UsuarioDetallePage() {
                         )}
                       </td>
                       <td>{METHOD_LABELS[l.method] || l.method}</td>
-                      <td className="muted">{l.ip || '—'}</td>
+                      <td className="muted nowrap">{formatIp(l.ip)}</td>
                       <td title={l.user_agent || ''}>{describeUserAgent(l.user_agent)}</td>
                     </tr>
                   ))}
