@@ -155,6 +155,12 @@ export const api = {
     ),
   listAuditLog: (token, before) =>
     request(`/api/audit-log${before ? `?before=${before}` : ''}`, { token }),
+  // Moderación en la auth-api (requiere AUTH_API_SYSTEM_ADMIN_TOKEN en el backend)
+  revokeUserSessions: (authUserId, token) =>
+    request(`/api/local-users/${encodeURIComponent(authUserId)}/revoke-sessions`, { method: 'POST', token }),
+  disableUserTotp: (authUserId, token) =>
+    request(`/api/local-users/${encodeURIComponent(authUserId)}/disable-totp`, { method: 'POST', token }),
+  // Devuelve { user, authApi, warning? }: `warning` si no se pudo aplicar en la auth-api.
   setLocalUserBlocked: (authUserId, blocked, token) =>
     request(`/api/local-users/${encodeURIComponent(authUserId)}/blocked`, {
       method: 'PUT',

@@ -5,6 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import { formatRut } from '../utils/rut';
 import { describeUserAgent } from '../utils/userAgent';
 import { formatIp } from '../utils/ip';
+import { UserSecurityActions } from '../components/UserSecurityActions';
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleString('es-CL') : '—';
@@ -73,6 +74,12 @@ export function UsuarioDetallePage() {
               <li><span>Bloqueado desde</span><span>{formatDate(user.blocked_at)}</span></li>
             )}
           </ul>
+
+          <UserSecurityActions
+            user={user}
+            onUserChange={setUser}
+            lastMethod={logins.find((l) => l.result === 'success')?.method}
+          />
 
           <h2 style={{ marginTop: 32 }}>Inicios de sesión</h2>
           {!loading && logins.length === 0 ? (

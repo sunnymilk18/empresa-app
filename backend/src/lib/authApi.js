@@ -45,4 +45,46 @@ async function callAuthApi(path, { method = 'POST', body, headers = {} } = {}) {
   }
 }
 
-module.exports = { AuthApiUnavailableError, authApiFetch, callAuthApi };
+// Acción de moderación sobre una cuenta en la auth-api, con la credencial
+// acotada a este sistema: 'ban' | 'unban' | 'disable-totp' | 'revoke-sessions'.
+// Nunca lanza: devuelve cómo terminó, para que quien llama decida qué hacer.
+//   'ok'           la auth-api la aplicó (204)
+//   'not_found'    la cuenta no existe en la auth-api (o es de otro sistema)
+//   'unauthorized' la credencial es inválida o fue revocada
+//   'unavailable'  la auth-api no respondió, tardó demasiado o falló
+//   'disabled'     no hay credencial configurada (AUTH_API_SYSTEM_ADMIN_TOKEN)
+async function systemAdminAction(authUserId, action) {
+  if (!config.authApiSystemAdminToken) return 'disabled';
+  let res;
+  try {
+    res = await authApiFetch(`/system-admin/users/${encodeURIComponent(authUserId)}/${action}`, {
+      method: 'POST',
+      headers: { 'X-System-Admin-Token': config.authApiSystemAdminToken },
+    });
+  } catch {
+    return 'unavailable';
+  }
+  await res.text().catch(() => {}); // libera la conexión; el cuerpo no se usa
+  if (res.status === 204 || res.ok) return 'ok';
+  if (res.status === 404) return 'not_found';
+  if (res.status === 401) return 'unauthorized';
+  return 'unavailable';
+}
+
+// Texto para mostrar cuando una acción de moderación no se pudo aplicar.
+const SYSTEM_ADMIN_MESSAGES = {
+  not_found: 'La cuenta ya no existe en el servicio de autenticación.',
+  unauthorized:
+    'La credencial de administración del servicio de autenticación es inválida o fue revocada (revisa AUTH_API_SYSTEM_ADMIN_TOKEN en el .env del backend).',
+  unavailable: 'El servicio de autenticación no respondió. Intenta de nuevo en unos minutos.',
+  disabled:
+    'Esta acción requiere la credencial de administración del servicio de autenticación (AUTH_API_SYSTEM_ADMIN_TOKEN), que no está configurada.',
+};
+
+module.exports = {
+  AuthApiUnavailableError,
+  authApiFetch,
+  callAuthApi,
+  systemAdminAction,
+  SYSTEM_ADMIN_MESSAGES,
+};

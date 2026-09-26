@@ -60,6 +60,11 @@ const initSql = `
   -- Para que la limpieza de registros antiguos encuentre rápido lo que borra.
   CREATE INDEX IF NOT EXISTS login_history_created_at_idx ON login_history (created_at);
 
+  -- Acción de moderación ('ban' o 'unban') que no se pudo aplicar en la
+  -- auth-api (caída o credencial inválida) y queda por reintentar desde el
+  -- panel. NULL = nada pendiente.
+  ALTER TABLE local_users ADD COLUMN IF NOT EXISTS auth_api_pending_action TEXT;
+
   -- IP del último ingreso exitoso, guardada en la ficha para que sobreviva a
   -- la limpieza del historial. La primera vez se completa desde el historial.
   ALTER TABLE local_users ADD COLUMN IF NOT EXISTS last_login_ip TEXT;

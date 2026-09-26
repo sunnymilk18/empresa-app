@@ -111,6 +111,9 @@ iniciar sesión cuando vence el `refresh_token` o al presionar "Salir".
 | POST | `/auth/password-reset/confirm` | Confirmar código + nueva contraseña |
 | GET  | `/.well-known/jwks.json` | Clave pública para verificar el JWT localmente |
 | GET  | `/me` | Perfil (username, rut, método de segundo factor) con el `access_token` |
+| POST | `/system-admin/users/{id}/ban` · `/unban` | Bloquear / desbloquear la cuenta (el ban también cierra sus sesiones) |
+| POST | `/system-admin/users/{id}/revoke-sessions` | Cerrar todas las sesiones de la cuenta |
+| POST | `/system-admin/users/{id}/disable-totp` | Desactivar la app autenticadora de la cuenta |
 
 Todas las llamadas `/auth/*` requieren el header `X-API-Key` (lo agrega
 `empresa-backend`, nunca el frontend). `/auth/totp/*` requiere que la
@@ -118,6 +121,13 @@ auth-api tenga la app autenticadora habilitada (`TOTP_ENCRYPTION_KEY`). Si
 no la tiene, el primer login no pregunta el método (siempre se usa el
 correo) y, al intentar activarla desde la tarjeta Seguridad, se muestra el
 error que devuelve la auth-api.
+
+Las rutas `/system-admin/*` usan otra credencial, `X-System-Admin-Token`
+(`AUTH_API_SYSTEM_ADMIN_TOKEN` en el `.env` del backend): solo sirve para
+administrar las cuentas **de este sistema**, y con una cuenta de otro
+sistema la auth-api responde 404. Es opcional: sin ella, el panel bloquea
+solo localmente y no ofrece cerrar sesiones ni desactivar la app
+autenticadora.
 
 ## Roles y permisos (en empresa-app, no en la auth-api)
 
@@ -159,18 +169,29 @@ enlazados a la cuenta de la auth-api por su id (`sub` del JWT).
   desde ella dentro del historial guardado, no solo en su último login. Filtros por rol y estado, y
   paginación de 20 en 20. Los filtros quedan en la URL, así se conservan al
   recargar o al volver desde el detalle.
-- **Detalle de un usuario** (`/usuarios/:id`): sus datos y su historial de
-  inicios de sesión (fecha, resultado, método, IP y navegador).
+- **Detalle de un usuario** (`/usuarios/:id`): sus datos, su historial de
+  inicios de sesión (fecha, resultado, método, IP y navegador) y la sección
+  **Acciones de seguridad**: bloquear/desbloquear, **cerrar todas sus
+  sesiones** (si sospechas que alguien más usa la cuenta) y **desactivar su
+  app autenticadora** (si perdió el celular; vuelve al código por correo).
+  Las dos últimas requieren `AUTH_API_SYSTEM_ADMIN_TOKEN`. Ninguna se puede
+  usar sobre la propia cuenta.
 - **Bloqueo de cuentas**: una cuenta bloqueada no puede usar empresa-app
-  aunque su contraseña y su código sean correctos. Si intenta iniciar
-  sesión, la sesión que le acaba de entregar la auth-api se revoca en el
-  acto; si ya tenía una sesión abierta, se le rechaza en su siguiente
-  acción (al recargar, vuelve al login con el aviso). El bloqueo es solo
-  para empresa-app: no afecta otros sistemas que usen la misma auth-api.
+  aunque su contraseña y su código sean correctos. Con
+  `AUTH_API_SYSTEM_ADMIN_TOKEN` configurado, bloquear también **banea la
+  cuenta en la auth-api**, que cierra todas sus sesiones y le impide iniciar
+  sesión; desbloquear revierte ambas cosas. Si la auth-api no responde (o
+  rechaza la credencial), el bloqueo local se aplica igual y la cuenta queda
+  marcada con **"⚠ Reintentar"** en Usuarios hasta que se complete. Sin la
+  credencial, el bloqueo es solo local: si la cuenta intenta iniciar
+  sesión, la sesión que le entrega la auth-api se revoca en el acto, y si ya
+  tenía una abierta, se le rechaza en su siguiente acción.
 - **Actividad** (`/actividad`): registro de quién hizo qué, a quién, cuándo
-  y desde qué IP. Incluye cambios de rol, bloqueos y desbloqueos, y cuando
-  alguien activa o desactiva la app autenticadora. No se puede editar ni
-  borrar desde la app.
+  y desde qué IP. Incluye cambios de rol, bloqueos y desbloqueos (y si se
+  aplicaron también en la auth-api), sesiones cerradas y apps
+  autenticadoras desactivadas por un superadmin, y cuando alguien activa o
+  desactiva su propia app autenticadora. No se puede editar ni borrar desde
+  la app.
 - **Limpieza automática**: al arrancar el backend y luego una vez al día se
   borran los inicios de sesión de más de **1 año** y la actividad de más de
   **3 años** (configurable con `LOGIN_HISTORY_RETENTION_DAYS` y
@@ -188,7 +209,9 @@ enlazados a la cuenta de la auth-api por su id (`sub` del JWT).
 | GET | `/api/stats` | superadmin | Resumen del dashboard |
 | GET | `/api/local-users?q=&role=&status=&page=&pageSize=` | superadmin | Lista de usuarios con búsqueda, filtros y paginación (20 por página, máx. 100) |
 | PUT | `/api/local-users/:authUserId/role` | superadmin | Cambiar rol |
-| PUT | `/api/local-users/:authUserId/blocked` | superadmin | Bloquear / desbloquear |
+| PUT | `/api/local-users/:authUserId/blocked` | superadmin | Bloquear / desbloquear (aquí y en la auth-api; repetirlo reintenta lo pendiente) |
+| POST | `/api/local-users/:authUserId/revoke-sessions` | superadmin | Cerrar todas sus sesiones (requiere `AUTH_API_SYSTEM_ADMIN_TOKEN`) |
+| POST | `/api/local-users/:authUserId/disable-totp` | superadmin | Desactivar su app autenticadora (requiere `AUTH_API_SYSTEM_ADMIN_TOKEN`) |
 | GET | `/api/local-users/:authUserId/logins?before=` | superadmin | Datos + historial de inicios de sesión (de a 50) |
 | GET | `/api/audit-log?before=` | superadmin | Registro de actividad (de a 50) |
 
@@ -290,10 +313,13 @@ Queda escuchando en `http://localhost:5173`.
 
 ## Limitaciones conocidas
 
-- **Si alguien pierde el celular con la app autenticadora activa, no podrá
-  entrar**: la auth-api no ofrece códigos de respaldo ni una forma de que
-  un administrador de empresa-app la desactive. La pantalla de elección y
-  la tarjeta Seguridad lo advierten.
+- **Si alguien pierde el celular con la app autenticadora activa**, no puede
+  entrar por su cuenta: la auth-api no ofrece códigos de respaldo. Un
+  superadmin puede desactivarle la app desde el detalle del usuario (requiere
+  `AUTH_API_SYSTEM_ADMIN_TOKEN`); después entra con el código por correo.
+- Un superadmin que desbloquea una cuenta también le quita el ban en la
+  auth-api, aunque ese ban lo hubiera puesto el operador de la auth-api por
+  otro motivo (ambos usan el mismo ban).
 - En la pantalla del código, la auth-api no indica si la cuenta usa correo
   o app, por eso el texto menciona ambos.
 - La búsqueda por IP solo encuentra IPs dentro del plazo que se guarda el

@@ -4,6 +4,7 @@ import { api } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { formatRut } from '../utils/rut';
 import { formatIp } from '../utils/ip';
+import { blockConfirmText, pendingText } from '../utils/moderation';
 
 const ROLES = ['superadmin', 'admin', 'user'];
 
@@ -39,6 +40,9 @@ export function UsuariosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [savingId, setSavingId] = useState(null);
+  // Aviso cuando un bloqueo se aplicó aquí pero no en la auth-api.
+  const [warning, setWarning] = useState('');
+  const moderationEnabled = Boolean(profile?.features?.authApiModeration);
 
   // Siempre la URL más reciente. La búsqueda se aplica con retraso desde un
   // timer creado en un render anterior; si partiera de los parámetros de ese
@@ -107,10 +111,12 @@ export function UsuariosPage() {
   // Aplica un cambio sobre un usuario y reemplaza su fila con la respuesta.
   async function updateUser(authUserId, action) {
     setError('');
+    setWarning('');
     setSavingId(authUserId);
     try {
       const res = await action();
       setUsers((prev) => prev.map((u) => (u.auth_user_id === authUserId ? res.user : u)));
+      if (res.warning) setWarning(`${res.user.email}: ${res.warning}`);
     } catch (err) {
       setError(err.data?.error || err.message);
     } finally {
@@ -124,11 +130,17 @@ export function UsuariosPage() {
 
   function toggleBlocked(user) {
     const blocked = !user.blocked_at;
-    if (blocked && !window.confirm(`¿Bloquear a ${user.email}? No podrá entrar al sistema hasta que lo desbloquees.`)) {
-      return;
-    }
+    if (blocked && !window.confirm(blockConfirmText(user.email, moderationEnabled))) return;
     updateUser(user.auth_user_id, () =>
       api.setLocalUserBlocked(user.auth_user_id, blocked, accessToken)
+    );
+  }
+
+  // Reintenta en la auth-api el ban/unban que quedó pendiente (repite la
+  // misma acción: el backend solo rehace la parte que faltaba).
+  function retryPending(user) {
+    updateUser(user.auth_user_id, () =>
+      api.setLocalUserBlocked(user.auth_user_id, user.auth_api_pending_action === 'ban', accessToken)
     );
   }
 
@@ -171,6 +183,7 @@ export function UsuariosPage() {
       </div>
 
       {error && <p className="error">{error}</p>}
+      {warning && <p className="warning">⚠ {warning}</p>}
 
       {loading && users.length === 0 ? (
         <p>Cargando...</p>
@@ -227,6 +240,17 @@ export function UsuariosPage() {
                         </span>
                       ) : (
                         <span className="badge badge-active">Activo</span>
+                      )}
+                      {u.auth_api_pending_action && (
+                        <button
+                          type="button"
+                          className="pending-retry"
+                          title={pendingText(u.auth_api_pending_action)}
+                          disabled={savingId === u.auth_user_id}
+                          onClick={() => retryPending(u)}
+                        >
+                          ⚠ Reintentar
+                        </button>
                       )}
                     </td>
                     <td>

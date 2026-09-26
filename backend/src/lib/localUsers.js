@@ -1,5 +1,6 @@
 const db = require('../db');
 const { logAction } = require('./audit');
+const { systemAdminAction } = require('./authApi');
 
 const ROLES = ['superadmin', 'admin', 'user'];
 
@@ -121,23 +122,68 @@ async function setRole(authUserId, role, actor) {
   });
 }
 
-// Un usuario bloqueado no puede usar empresa-app aunque su login en la
-// auth-api sea válido. Es reversible: desbloquear deja blocked_at en NULL.
+// Bloquea o desbloquea en los dos lados:
+//  1. Localmente: un usuario bloqueado no puede usar empresa-app aunque su
+//     login en la auth-api sea válido. Siempre se aplica.
+//  2. En la auth-api (si hay credencial): ban/unban de la cuenta, que además
+//     cierra sus sesiones al banear. Si falla (caída o credencial inválida),
+//     queda anotado en auth_api_pending_action para reintentar.
+// Repetir la misma acción con algo pendiente reintenta solo la parte de la
+// auth-api (y registra "auth_api_synced" si ahora funciona).
+// La llamada a la auth-api se hace dentro del turno, para que el resultado
+// quede en el mismo registro de actividad; solo son acciones del superadmin.
+// Devuelve { user, authApi } (authApi: ver authApi.systemAdminAction, o null
+// si no había nada que hacer) o null si el usuario no existe.
 async function setBlocked(authUserId, blocked, actor) {
   return db.transaction(async (query) => {
     await waitAdminTurn(query);
     const { rows } = await query('SELECT * FROM local_users WHERE auth_user_id = $1 FOR UPDATE', [authUserId]);
     const user = rows[0];
-    if (!user || Boolean(user.blocked_at) === blocked) return user ?? null;
-    await checkAdminChange(query, actor, user, isActiveSuperadmin(user) && blocked);
+    if (!user) return null;
 
+    const action = blocked ? 'ban' : 'unban';
+    const changed = Boolean(user.blocked_at) !== blocked;
+    if (!changed && user.auth_api_pending_action !== action) return { user, authApi: null };
+    await checkAdminChange(query, actor, user, changed && isActiveSuperadmin(user) && blocked);
+
+    const authApi = await systemAdminAction(authUserId, action);
+    const pending = authApi === 'unavailable' || authApi === 'unauthorized' ? action : null;
     const updated = await query(
-      `UPDATE local_users SET blocked_at = ${blocked ? 'NOW()' : 'NULL'}
+      `UPDATE local_users
+       SET blocked_at = ${blocked ? 'COALESCE(blocked_at, NOW())' : 'NULL'},
+           auth_api_pending_action = $2
        WHERE auth_user_id = $1 RETURNING *`,
-      [authUserId]
+      [authUserId, pending]
     );
-    await logAction(query, actor, blocked ? 'user_blocked' : 'user_unblocked', user);
-    return updated.rows[0];
+    if (changed) {
+      await logAction(query, actor, blocked ? 'user_blocked' : 'user_unblocked', user, { auth_api: authApi });
+    } else if (authApi === 'ok' || authApi === 'not_found') {
+      await logAction(query, actor, 'auth_api_synced', user, { action, auth_api: authApi });
+    }
+    return { user: updated.rows[0], authApi };
+  });
+}
+
+// Acciones solo de la auth-api sobre la cuenta de otra persona:
+// 'revoke-sessions' (cerrar todas sus sesiones) o 'disable-totp' (desactivar
+// su app autenticadora, p. ej. si perdió el celular). No cambian nada local;
+// se registran en la actividad solo si la auth-api las aplicó.
+// Devuelve { user, authApi } o null si el usuario no existe.
+const IDENTITY_ACTION_AUDIT = {
+  'revoke-sessions': 'sessions_revoked',
+  'disable-totp': 'totp_disabled_by_admin',
+};
+async function runIdentityAction(authUserId, action, actor) {
+  return db.transaction(async (query) => {
+    await waitAdminTurn(query);
+    const { rows } = await query('SELECT * FROM local_users WHERE auth_user_id = $1', [authUserId]);
+    const user = rows[0];
+    if (!user) return null;
+    await checkAdminChange(query, actor, user, false);
+
+    const authApi = await systemAdminAction(authUserId, action);
+    if (authApi === 'ok') await logAction(query, actor, IDENTITY_ACTION_AUDIT[action], user);
+    return { user, authApi };
   });
 }
 
@@ -218,5 +264,6 @@ module.exports = {
   recordLogin,
   setRole,
   setBlocked,
+  runIdentityAction,
   listLocalUsers,
 };

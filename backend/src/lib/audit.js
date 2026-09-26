@@ -1,7 +1,10 @@
 const db = require('../db');
 
 // Acciones registradas (el frontend las traduce a texto legible):
-//  - de un superadmin sobre otra cuenta: role_changed, user_blocked, user_unblocked
+//  - de un superadmin sobre otra cuenta: role_changed, user_blocked,
+//    user_unblocked (details.auth_api: cómo terminó en la auth-api),
+//    auth_api_synced (reintento exitoso de un ban/unban pendiente),
+//    sessions_revoked, totp_disabled_by_admin
 //  - de una persona sobre su propia cuenta: totp_enabled, totp_disabled
 // Inserta una fila de auditoría usando la conexión de la transacción en curso,
 // para que la acción y su registro se guarden juntos o no se guarde ninguno.

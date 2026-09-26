@@ -7,6 +7,22 @@ function formatDate(value) {
   return new Date(value).toLocaleString('es-CL');
 }
 
+// Cómo terminó un bloqueo/desbloqueo en el servicio de autenticación.
+// Los registros anteriores a esta función no traen el dato: no se agrega nada.
+function authApiNote(result) {
+  switch (result) {
+    case 'ok':
+      return ' (también en el servicio de autenticación)';
+    case 'unavailable':
+    case 'unauthorized':
+      return ' (pendiente en el servicio de autenticación)';
+    case 'not_found':
+      return ' (la cuenta ya no existe en el servicio de autenticación)';
+    default:
+      return '';
+  }
+}
+
 // Traduce cada acción registrada en el backend a una frase legible.
 function describe(entry) {
   const target = entry.target_email || 'un usuario';
@@ -20,9 +36,20 @@ function describe(entry) {
         </>
       );
     case 'user_blocked':
-      return <>bloqueó a <strong>{target}</strong></>;
+      return <>bloqueó a <strong>{target}</strong>{authApiNote(entry.details.auth_api)}</>;
     case 'user_unblocked':
-      return <>desbloqueó a <strong>{target}</strong></>;
+      return <>desbloqueó a <strong>{target}</strong>{authApiNote(entry.details.auth_api)}</>;
+    case 'auth_api_synced':
+      return (
+        <>
+          aplicó en el servicio de autenticación el {entry.details.action === 'ban' ? 'bloqueo' : 'desbloqueo'}{' '}
+          pendiente de <strong>{target}</strong>
+        </>
+      );
+    case 'sessions_revoked':
+      return <>cerró todas las sesiones de <strong>{target}</strong></>;
+    case 'totp_disabled_by_admin':
+      return <>desactivó la app autenticadora de <strong>{target}</strong></>;
     // Acciones de la persona sobre su propia cuenta.
     case 'totp_enabled':
       return <>activó la app autenticadora en su cuenta</>;

@@ -28,6 +28,10 @@ const config = {
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
   authApiUrl: required('AUTH_API_URL').replace(/\/+$/, ''),
   authApiKey: required('AUTH_API_KEY'),
+  // Opcional: credencial de administración de la auth-api acotada a este
+  // sistema (header X-System-Admin-Token). Sin ella, el panel solo bloquea
+  // localmente y no ofrece cerrar sesiones ni desactivar la app autenticadora.
+  authApiSystemAdminToken: process.env.AUTH_API_SYSTEM_ADMIN_TOKEN || null,
   // Tiempo máximo de espera de cada llamada a la auth-api (ms).
   authApiTimeoutMs: Number(process.env.AUTH_API_TIMEOUT_MS) || 10000,
   databaseUrl: required('DATABASE_URL'),

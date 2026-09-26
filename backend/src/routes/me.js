@@ -1,10 +1,18 @@
 const express = require('express');
 const { requireAuth, requireRole } = require('../middleware/auth');
-const { ROLES, getLocalUser, listLocalUsers, setRole, setBlocked } = require('../lib/localUsers');
+const config = require('../config');
+const {
+  ROLES,
+  getLocalUser,
+  listLocalUsers,
+  setRole,
+  setBlocked,
+  runIdentityAction,
+} = require('../lib/localUsers');
 const { listAuditLog } = require('../lib/audit');
 const { listLoginHistory } = require('../lib/loginHistory');
 const { getDashboardStats } = require('../lib/stats');
-const { authApiFetch } = require('../lib/authApi');
+const { authApiFetch, SYSTEM_ADMIN_MESSAGES } = require('../lib/authApi');
 const asyncHandler = require('../lib/asyncHandler');
 
 const router = express.Router();
@@ -49,6 +57,9 @@ router.get('/me', requireAuth, async (req, res) => {
     id: req.authUser.id,
     email: req.authUser.email,
     role: req.localUser.role,
+    // Qué funciones opcionales tiene este backend, para que el panel muestre
+    // u oculte los botones que dependen de ellas.
+    features: { authApiModeration: Boolean(config.authApiSystemAdminToken) },
   });
 });
 
@@ -100,10 +111,43 @@ router.put('/local-users/:authUserId/blocked', requireAuth, requireRole('superad
   if (req.params.authUserId === req.authUser.id) {
     return res.status(400).json({ error: 'No puedes bloquearte a ti mismo' });
   }
-  const updated = await setBlocked(req.params.authUserId, blocked, actorOf(req));
-  if (!updated) return res.status(404).json({ error: 'Usuario no encontrado' });
-  res.json({ user: updated });
+  const result = await setBlocked(req.params.authUserId, blocked, actorOf(req));
+  if (!result) return res.status(404).json({ error: 'Usuario no encontrado' });
+  // authApi: cómo terminó en la auth-api ('ok', 'not_found', 'unavailable',
+  // 'unauthorized', 'disabled' o null si no hubo nada que hacer). El cambio
+  // local ya quedó aplicado en cualquier caso; `warning` explica si falta algo.
+  res.json({
+    user: result.user,
+    authApi: result.authApi,
+    warning: result.authApi && result.authApi !== 'ok' && result.authApi !== 'disabled'
+      ? SYSTEM_ADMIN_MESSAGES[result.authApi]
+      : undefined,
+  });
 }));
+
+// Códigos HTTP para una acción de la auth-api que no se pudo aplicar.
+const IDENTITY_ACTION_STATUS = { not_found: 404, unauthorized: 502, unavailable: 503, disabled: 503 };
+
+// POST /api/local-users/:authUserId/revoke-sessions  (solo superadmin)
+// POST /api/local-users/:authUserId/disable-totp     (solo superadmin)
+// Cierran todas las sesiones de la persona, o le desactivan la app
+// autenticadora (p. ej. perdió el celular), en la auth-api. No se permiten
+// sobre la propia cuenta: para eso están "Salir" y la tarjeta Seguridad.
+for (const action of ['revoke-sessions', 'disable-totp']) {
+  router.post(`/local-users/:authUserId/${action}`, requireAuth, requireRole('superadmin'), asyncHandler(async (req, res) => {
+    if (req.params.authUserId === req.authUser.id) {
+      return res.status(400).json({ error: 'Esta acción no se puede usar sobre tu propia cuenta' });
+    }
+    const result = await runIdentityAction(req.params.authUserId, action, actorOf(req));
+    if (!result) return res.status(404).json({ error: 'Usuario no encontrado' });
+    if (result.authApi !== 'ok') {
+      return res
+        .status(IDENTITY_ACTION_STATUS[result.authApi])
+        .json({ error: SYSTEM_ADMIN_MESSAGES[result.authApi], code: `auth_api_${result.authApi}` });
+    }
+    res.json({ user: result.user });
+  }));
+}
 
 // GET /api/local-users/:authUserId/logins?before=<id>&limit=<n>  (solo superadmin)
 // Datos de la persona + su historial de inicios de sesión.
