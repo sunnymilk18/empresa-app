@@ -33,8 +33,9 @@ empresa-app/
     ├── src/
     │   ├── auth/                 # AuthContext (sesión y renovación), ProtectedRoute
     │   ├── components/           # Navbar, AdminSummary, SecurityCard, TotpSetup
-    │   ├── pages/                # login, registro, segundo factor, dashboard, usuarios, actividad
-    │   ├── utils/                # formato de RUT, descripción del navegador
+    │   ├── pages/                # registro y confirmación de correo, login, recuperar contraseña,
+    │   │                         # segundo factor, dashboard, usuarios (+ detalle), actividad
+    │   ├── utils/                # formato de RUT e IP, descripción del navegador
     │   └── api.js                # cliente HTTP hacia empresa-backend
     └── .env.example
 ```
@@ -113,7 +114,10 @@ iniciar sesión cuando vence el `refresh_token` o al presionar "Salir".
 
 Todas las llamadas `/auth/*` requieren el header `X-API-Key` (lo agrega
 `empresa-backend`, nunca el frontend). `/auth/totp/*` requiere que la
-auth-api tenga la app autenticadora habilitada (`TOTP_ENCRYPTION_KEY`).
+auth-api tenga la app autenticadora habilitada (`TOTP_ENCRYPTION_KEY`). Si
+no la tiene, el primer login no pregunta el método (siempre se usa el
+correo) y, al intentar activarla desde la tarjeta Seguridad, se muestra el
+error que devuelve la auth-api.
 
 ## Roles y permisos (en empresa-app, no en la auth-api)
 
@@ -147,8 +151,8 @@ enlazados a la cuenta de la auth-api por su id (`sub` del JWT).
 - **Resumen** (en `/dashboard`): total de usuarios, cuántos hay por rol,
   bloqueados, nuevos y activos en los últimos 7 días, inicios de sesión
   exitosos e intentos de cuentas bloqueadas en los últimos 7 días, y los 5
-  inicios de sesión más recientes. Las tarjetas llevan a la lista de
-  usuarios ya filtrada.
+  inicios de sesión más recientes. Las tarjetas de usuarios, bloqueados y
+  cada rol llevan a la lista de usuarios ya filtrada.
 - **Usuarios** (`/usuarios`): muestra la última IP de cada persona.
   Búsqueda por email, usuario, RUT (con o sin puntos y guion) o **IP**: al
   buscar una IP aparecen todas las cuentas que alguna vez iniciaron sesión
@@ -158,9 +162,11 @@ enlazados a la cuenta de la auth-api por su id (`sub` del JWT).
 - **Detalle de un usuario** (`/usuarios/:id`): sus datos y su historial de
   inicios de sesión (fecha, resultado, método, IP y navegador).
 - **Bloqueo de cuentas**: una cuenta bloqueada no puede usar empresa-app
-  aunque su contraseña y su código sean correctos (su sesión en la auth-api
-  se revoca en el acto). El bloqueo es solo para empresa-app: no afecta
-  otros sistemas que usen la misma auth-api.
+  aunque su contraseña y su código sean correctos. Si intenta iniciar
+  sesión, la sesión que le acaba de entregar la auth-api se revoca en el
+  acto; si ya tenía una sesión abierta, se le rechaza en su siguiente
+  acción (al recargar, vuelve al login con el aviso). El bloqueo es solo
+  para empresa-app: no afecta otros sistemas que usen la misma auth-api.
 - **Actividad** (`/actividad`): registro de quién hizo qué, a quién, cuándo
   y desde qué IP. Incluye cambios de rol, bloqueos y desbloqueos, y cuando
   alguien activa o desactiva la app autenticadora. Solo se agregan filas:
@@ -174,21 +180,22 @@ enlazados a la cuenta de la auth-api por su id (`sub` del JWT).
 | POST | `/api/auth/*` | público* | Proxy hacia la auth-api (register, login, verify-otp, totp, etc.) |
 | GET | `/api/me` | con sesión | Perfil + rol local |
 | GET | `/api/stats` | superadmin | Resumen del dashboard |
-| GET | `/api/local-users?q=&role=&status=&page=` | superadmin | Lista de usuarios con búsqueda, filtros y paginación |
+| GET | `/api/local-users?q=&role=&status=&page=&pageSize=` | superadmin | Lista de usuarios con búsqueda, filtros y paginación (20 por página, máx. 100) |
 | PUT | `/api/local-users/:authUserId/role` | superadmin | Cambiar rol |
 | PUT | `/api/local-users/:authUserId/blocked` | superadmin | Bloquear / desbloquear |
-| GET | `/api/local-users/:authUserId/logins` | superadmin | Datos + historial de inicios de sesión |
-| GET | `/api/audit-log` | superadmin | Registro de actividad |
+| GET | `/api/local-users/:authUserId/logins?before=` | superadmin | Datos + historial de inicios de sesión (de a 50) |
+| GET | `/api/audit-log?before=` | superadmin | Registro de actividad (de a 50) |
 
 \* Excepto activar o desactivar la app autenticadora desde el perfil
 (`/api/auth/totp/*` sin `login_token`), que requiere sesión.
 
 ## Requisitos previos
 
-- Node.js 18 o superior (usa `fetch` nativo)
-- Una base PostgreSQL accesible (local o gestionada, p. ej. Neon). Las
-  tablas se crean y actualizan solas al arrancar el backend; solo hay que
-  crear la base vacía.
+- Node.js 18.11 o superior (usa `fetch` nativo, y `npm run dev` del backend
+  usa `node --watch`)
+- PostgreSQL 9.6 o superior, local o gestionado (p. ej. Neon). Las tablas se
+  crean y actualizan solas al arrancar el backend; solo hay que crear la
+  base vacía.
 - La auth-api desplegada y accesible, con una API key válida (`X-API-Key`)
 
 ## Instalación y uso local
@@ -200,6 +207,10 @@ Crea una base vacía (el nombre es a elección, p. ej. `empresa_db`):
 ```bash
 createdb -U postgres -h localhost empresa_db
 ```
+
+En Windows, `createdb` no suele estar en el PATH: se usa con su ruta
+completa, p. ej. `"C:\Program Files\PostgreSQL\18\bin\createdb.exe"` (cambia
+`18` por tu versión). También se puede crear desde pgAdmin.
 
 ### 2. Backend
 
@@ -237,8 +248,9 @@ Queda escuchando en `http://localhost:5173`.
 
 ## Resistencia a fallas
 
-- Si la auth-api **no responde, tarda más de 10 s o responde algo inválido**
-  (p. ej. una página de error de un proxy), el backend **no se cae**:
+- Si la auth-api **no responde, tarda más de 10 s (configurable con
+  `AUTH_API_TIMEOUT_MS`) o responde algo inválido** (p. ej. una página de
+  error de un proxy), el backend **no se cae**:
   responde `503` con un mensaje claro y el frontend **conserva la sesión**
   para que, al volver el servicio, baste con recargar.
 - Mientras la auth-api está caída, las sesiones abiertas siguen funcionando
@@ -282,6 +294,8 @@ Queda escuchando en `http://localhost:5173`.
 - No se registran los intentos con contraseña incorrecta (en ese punto no se
   sabe con certeza de qué cuenta son); de eso se encarga la auth-api con su
   bloqueo temporal por intentos fallidos.
+- `npm audit` del frontend reporta 2 alertas moderadas en `react-router` /
+  `react-router-dom`; se resuelven actualizando esa dependencia (pendiente).
 - `auth-2fa-api-go` también ofrece aprobación por notificación push y
   dispositivos de confianza, que quedan fuera del alcance de este proyecto.
 - Si tu API key fue compartida por accidente en algún lugar público,
