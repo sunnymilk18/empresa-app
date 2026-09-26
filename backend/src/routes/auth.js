@@ -26,7 +26,7 @@ function forward(res, upstream) {
 // login. El token viene directo de la auth-api por HTTPS, así que basta con
 // decodificarlo. Si algo falla no bloqueamos el login: solo se registra.
 // Devuelve { localUser, method } (o null si no hubo login o falló el registro).
-async function syncLocalUser(upstream) {
+async function syncLocalUser(req, upstream) {
   const accessToken = upstream.status === 200 && upstream.data?.access_token;
   if (!accessToken) return null;
   try {
@@ -46,6 +46,7 @@ async function syncLocalUser(upstream) {
       email: claims.email,
       username: profile.username,
       rut: profile.rut,
+      ip: req.ip,
     });
     return { localUser, method: profile.totp_enabled ? 'totp' : 'otp' };
   } catch (err) {
@@ -78,7 +79,7 @@ async function logLoginEvent(req, localUser, method, result) {
 // creada y no entrega los tokens. Devuelve el usuario local (o undefined si
 // el login no se completó).
 async function finishLogin(req, res, upstream) {
-  const synced = await syncLocalUser(upstream);
+  const synced = await syncLocalUser(req, upstream);
   const localUser = synced?.localUser;
   if (localUser) {
     await logLoginEvent(req, localUser, synced.method, localUser.blocked_at ? 'blocked' : 'success');

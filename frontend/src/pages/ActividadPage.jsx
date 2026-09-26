@@ -66,7 +66,8 @@ export function ActividadPage() {
       <h1>Actividad</h1>
       <p className="muted">
         Historial de acciones de administración y cambios de seguridad de cada cuenta. No se
-        puede editar ni borrar.
+        puede editar ni borrar; los registros más antiguos que el plazo configurado (3 años
+        por defecto) se eliminan automáticamente.
       </p>
       {error && <p className="error">{error}</p>}
 

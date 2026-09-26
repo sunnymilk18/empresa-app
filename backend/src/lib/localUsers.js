@@ -8,8 +8,9 @@ const recordLoginStmt = db.prepare(`
   UPDATE local_users
   -- COALESCE: si la auth-api no entregó el perfil, se conservan los datos previos
   SET email = $1, username = COALESCE($2, username), rut = COALESCE($3, rut),
-      -- un intento de una cuenta bloqueada no cuenta como ingreso
-      last_login_at = CASE WHEN blocked_at IS NULL THEN NOW() ELSE last_login_at END
+      -- un intento de una cuenta bloqueada no cuenta como ingreso (ni su IP)
+      last_login_at = CASE WHEN blocked_at IS NULL THEN NOW() ELSE last_login_at END,
+      last_login_ip = CASE WHEN blocked_at IS NULL THEN $5 ELSE last_login_ip END
   WHERE auth_user_id = $4
 `);
 
@@ -39,10 +40,11 @@ async function getOrCreateLocalUser(authUserId, email) {
 }
 
 // Se llama cada vez que alguien completa el login (OTP o TOTP): asegura que
-// exista localmente y refresca los datos de perfil que vienen de la auth-api.
-async function recordLogin(authUserId, { email, username, rut }) {
+// exista localmente y refresca los datos de perfil que vienen de la auth-api,
+// la hora y la IP del ingreso.
+async function recordLogin(authUserId, { email, username, rut, ip }) {
   await getOrCreateLocalUser(authUserId, email);
-  await recordLoginStmt.run(email, username ?? null, rut ?? null, authUserId);
+  await recordLoginStmt.run(email, username ?? null, rut ?? null, authUserId, ip ?? null);
   return findStmt.get(authUserId);
 }
 
@@ -149,7 +151,7 @@ function likePattern(text) {
 }
 
 // Lista paginada con búsqueda y filtros, más recientes primero. Cada usuario
-// trae `last_ip`: la IP de su último inicio de sesión registrado.
+// trae `last_login_ip` (IP de su último ingreso exitoso, guardada en la ficha).
 // - q: busca en email, username o rut (el rut con o sin puntos/guion) y, si
 //   parece una IP, en todas las IPs desde las que la persona inició sesión
 // - role: 'superadmin' | 'admin' | 'user'
@@ -189,11 +191,7 @@ async function listLocalUsers({ q, role, status, limit = 20, offset = 0 } = {}) 
 
   // COUNT(*) OVER() trae el total junto con la página, en una sola consulta.
   const sql = `
-    SELECT *,
-      (SELECT lh.ip FROM login_history lh
-       WHERE lh.auth_user_id = local_users.auth_user_id
-       ORDER BY lh.id DESC LIMIT 1) AS last_ip,
-      COUNT(*) OVER() AS total_count
+    SELECT *, COUNT(*) OVER() AS total_count
     FROM local_users
     ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
     ORDER BY created_at DESC, id DESC

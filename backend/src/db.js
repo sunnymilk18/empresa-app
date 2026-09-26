@@ -27,7 +27,8 @@ const initSql = `
   ALTER TABLE local_users ADD CONSTRAINT local_users_role_check
     CHECK (role IN ('superadmin', 'admin', 'user'));
 
-  -- Registro de auditoría: solo se agregan filas, nunca se editan ni borran.
+  -- Registro de auditoría: la app solo agrega filas, nunca las edita. Las más
+  -- antiguas que AUDIT_LOG_RETENTION_DAYS las borra la limpieza automática.
   -- Los emails se copian al momento de la acción para que el registro siga
   -- siendo legible aunque después cambien.
   CREATE TABLE IF NOT EXISTS audit_log (
@@ -56,6 +57,23 @@ const initSql = `
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
   CREATE INDEX IF NOT EXISTS login_history_user_idx ON login_history (auth_user_id, id DESC);
+  -- Para que la limpieza de registros antiguos encuentre rápido lo que borra.
+  CREATE INDEX IF NOT EXISTS login_history_created_at_idx ON login_history (created_at);
+
+  -- IP del último ingreso exitoso, guardada en la ficha para que sobreviva a
+  -- la limpieza del historial. La primera vez se completa desde el historial.
+  ALTER TABLE local_users ADD COLUMN IF NOT EXISTS last_login_ip TEXT;
+  UPDATE local_users lu
+  SET last_login_ip = (
+    SELECT lh.ip FROM login_history lh
+    WHERE lh.auth_user_id = lu.auth_user_id AND lh.result = 'success'
+    ORDER BY lh.id DESC LIMIT 1
+  )
+  WHERE lu.last_login_ip IS NULL
+    AND EXISTS (
+      SELECT 1 FROM login_history lh
+      WHERE lh.auth_user_id = lu.auth_user_id AND lh.result = 'success' AND lh.ip IS NOT NULL
+    );
 `;
 
 // Pequeña capa tipo "prepared statement" para que las rutas no dependan de
@@ -113,5 +131,8 @@ module.exports = {
   prepare,
   transaction,
   init,
+  // Conexión dedicada (hay que liberarla con client.release()). La usa la
+  // limpieza automática para sostener un candado mientras borra por tandas.
+  connect: () => pool.connect(),
   close: () => pool.end(),
 };

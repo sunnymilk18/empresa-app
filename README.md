@@ -153,10 +153,10 @@ enlazados a la cuenta de la auth-api por su id (`sub` del JWT).
   exitosos e intentos de cuentas bloqueadas en los últimos 7 días, y los 5
   inicios de sesión más recientes. Las tarjetas de usuarios, bloqueados y
   cada rol llevan a la lista de usuarios ya filtrada.
-- **Usuarios** (`/usuarios`): muestra la última IP de cada persona.
-  Búsqueda por email, usuario, RUT (con o sin puntos y guion) o **IP**: al
-  buscar una IP aparecen todas las cuentas que alguna vez iniciaron sesión
-  desde ella, no solo en su último login. Filtros por rol y estado, y
+- **Usuarios** (`/usuarios`): muestra la IP del último ingreso exitoso de
+  cada persona. Búsqueda por email, usuario, RUT (con o sin puntos y guion)
+  o **IP**: al buscar una IP aparecen todas las cuentas que iniciaron sesión
+  desde ella dentro del historial guardado, no solo en su último login. Filtros por rol y estado, y
   paginación de 20 en 20. Los filtros quedan en la URL, así se conservan al
   recargar o al volver desde el detalle.
 - **Detalle de un usuario** (`/usuarios/:id`): sus datos y su historial de
@@ -169,8 +169,14 @@ enlazados a la cuenta de la auth-api por su id (`sub` del JWT).
   para empresa-app: no afecta otros sistemas que usen la misma auth-api.
 - **Actividad** (`/actividad`): registro de quién hizo qué, a quién, cuándo
   y desde qué IP. Incluye cambios de rol, bloqueos y desbloqueos, y cuando
-  alguien activa o desactiva la app autenticadora. Solo se agregan filas:
-  no se puede editar ni borrar.
+  alguien activa o desactiva la app autenticadora. No se puede editar ni
+  borrar desde la app.
+- **Limpieza automática**: al arrancar el backend y luego una vez al día se
+  borran los inicios de sesión de más de **1 año** y la actividad de más de
+  **3 años** (configurable con `LOGIN_HISTORY_RETENTION_DAYS` y
+  `AUDIT_LOG_RETENTION_DAYS`; `0` = no borrar nunca). Se borra por tandas y,
+  si hay varias copias del backend, solo una limpia. La "Última IP" de cada
+  persona se guarda en su ficha, así que no se pierde con la limpieza.
 
 ## Endpoints propios de empresa-backend
 
@@ -290,8 +296,8 @@ Queda escuchando en `http://localhost:5173`.
   la tarjeta Seguridad lo advierten.
 - En la pantalla del código, la auth-api no indica si la cuenta usa correo
   o app, por eso el texto menciona ambos.
-- El historial de inicios de sesión y la actividad **crecen sin límite**;
-  más adelante conviene borrar registros antiguos.
+- La búsqueda por IP solo encuentra IPs dentro del plazo que se guarda el
+  historial (1 año por defecto).
 - No se registran los intentos con contraseña incorrecta (en ese punto no se
   sabe con certeza de qué cuenta son); de eso se encarga la auth-api con su
   bloqueo temporal por intentos fallidos.

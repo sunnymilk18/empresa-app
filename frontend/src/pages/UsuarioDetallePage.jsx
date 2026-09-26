@@ -68,6 +68,7 @@ export function UsuarioDetallePage() {
             <li><span>RUT</span><span>{user.rut ? formatRut(user.rut) : '—'}</span></li>
             <li><span>Primer ingreso</span><span>{formatDate(user.created_at)}</span></li>
             <li><span>Último ingreso</span><span>{formatDate(user.last_login_at)}</span></li>
+            <li><span>Última IP</span><span>{formatIp(user.last_login_ip)}</span></li>
             {user.blocked_at && (
               <li><span>Bloqueado desde</span><span>{formatDate(user.blocked_at)}</span></li>
             )}
@@ -76,8 +77,8 @@ export function UsuarioDetallePage() {
           <h2 style={{ marginTop: 32 }}>Inicios de sesión</h2>
           {!loading && logins.length === 0 ? (
             <p className="muted">
-              Sin registros todavía. El historial empezó a guardarse con esta versión, así
-              que los ingresos anteriores no aparecen.
+              Sin inicios de sesión registrados. El historial guarda los del último año
+              (plazo configurable); los más antiguos se eliminan automáticamente.
             </p>
           ) : (
             <div className="table-wrap">

@@ -4,6 +4,7 @@ const config = require('./config');
 const db = require('./db');
 const { AuthApiUnavailableError } = require('./lib/authApi');
 const { AdminChangeError } = require('./lib/localUsers');
+const { scheduleRetention } = require('./lib/retention');
 
 const authRoutes = require('./routes/auth');
 const meRoutes = require('./routes/me');
@@ -52,6 +53,13 @@ db.init()
       console.log(`empresa-backend escuchando en http://localhost:${config.port}`);
       // eslint-disable-next-line no-console
       console.log(`Consumiendo auth-api en ${config.authApiUrl}`);
+      const plazo = (days) => (days ? `${days} días` : 'sin límite');
+      // eslint-disable-next-line no-console
+      console.log(
+        `Retención: historial ${plazo(config.loginHistoryRetentionDays)}, ` +
+          `actividad ${plazo(config.auditLogRetentionDays)}`
+      );
+      scheduleRetention();
     });
   })
   .catch((err) => {

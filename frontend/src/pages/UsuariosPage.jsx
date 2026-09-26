@@ -219,7 +219,7 @@ export function UsuariosPage() {
                       )}
                     </td>
                     <td className="nowrap">{formatDate(u.last_login_at)}</td>
-                    <td className="nowrap muted">{formatIp(u.last_ip)}</td>
+                    <td className="nowrap muted">{formatIp(u.last_login_ip)}</td>
                     <td>
                       {u.blocked_at ? (
                         <span className="badge badge-blocked" title={`Desde ${formatDate(u.blocked_at)}`}>
