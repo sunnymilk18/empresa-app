@@ -23,6 +23,10 @@ export function LoginPage() {
       // factor antes de pedir un código.
       if (res.needs_2fa_setup) {
         navigate('/elegir-metodo', { state: { loginToken: res.login_token } });
+      } else if (res.push_approval_offered) {
+        // La cuenta ya tiene un celular emparejado con push activado: se
+        // espera la aprobación en vez de pedir el código por correo.
+        navigate('/aprobar-celular', { state: { loginToken: res.login_token } });
       } else {
         navigate('/verify-otp', { state: { loginToken: res.login_token } });
       }

@@ -113,6 +113,12 @@ export const api = {
     request('/api/auth/send-email-code', { method: 'POST', body: payload }),
   verifyOtp: (payload) => request('/api/auth/verify-otp', { method: 'POST', body: payload }),
   resendCode: (payload) => request('/api/auth/resend-code', { method: 'POST', body: payload }),
+
+  // Aprobación de login por notificación push (celular ya emparejado).
+  pollPushLogin: (loginToken) =>
+    request(`/api/auth/login/push-status?login_token=${encodeURIComponent(loginToken)}`),
+  requestLoginEmailCode: (payload) =>
+    request('/api/auth/login/request-email-code', { method: 'POST', body: payload }),
   refresh: (payload) => request('/api/auth/refresh', { method: 'POST', body: payload }),
   logout: (payload) => request('/api/auth/logout', { method: 'POST', body: payload }),
 

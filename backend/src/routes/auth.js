@@ -149,6 +149,33 @@ router.post('/verify-otp', asyncHandler(async (req, res) => {
   await finishLogin(req, res, upstream);
 }));
 
+// --- Aprobación de login por notificación push (celular) --------------------
+// Solo aplica si el login anterior devolvió push_approval_offered=true: la
+// cuenta ya tiene un celular emparejado con push activado (app auth-2fa-app).
+
+// GET /api/auth/login/push-status  ->  GET /auth/login/push-status
+// El front hace polling (~2s) mientras espera que el celular apruebe.
+// status: 'pending' | 'approved' | 'rejected'. En 'approved' también trae los
+// tokens, y se completa el login igual que verify-otp (historial, bloqueo).
+router.get('/login/push-status', asyncHandler(async (req, res) => {
+  const { login_token } = req.query;
+  const upstream = await callAuthApi(
+    `/auth/login/push-status?login_token=${encodeURIComponent(login_token || '')}`,
+    { method: 'GET' }
+  );
+  await finishLogin(req, res, upstream);
+}));
+
+// POST /api/auth/login/request-email-code  ->  POST /auth/login/request-email-code
+// "No puedo aprobar desde el celular": pide el código por correo como
+// respaldo para un login que solo ofreció push. El login_token sigue
+// sirviendo después para /verify-otp, igual que un login por correo normal.
+router.post('/login/request-email-code', asyncHandler(async (req, res) => {
+  const { login_token } = req.body;
+  const upstream = await callAuthApi('/auth/login/request-email-code', { body: { login_token } });
+  forward(res, upstream);
+}));
+
 // POST /api/auth/refresh  ->  POST /auth/refresh
 router.post('/refresh', asyncHandler(async (req, res) => {
   const { refresh_token } = req.body;
