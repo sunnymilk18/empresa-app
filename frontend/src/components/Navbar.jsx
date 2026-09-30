@@ -21,6 +21,9 @@ export function Navbar() {
           <>
             <Link to="/usuarios">Usuarios</Link>
             <Link to="/actividad">Actividad</Link>
+            {profile?.features?.authApiModeration && (
+              <Link to="/cuentas-registradas">Cuentas registradas</Link>
+            )}
           </>
         )}
       </div>

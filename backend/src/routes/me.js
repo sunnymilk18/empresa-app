@@ -12,7 +12,7 @@ const {
 const { listAuditLog, AUDIT_ACTIONS } = require('../lib/audit');
 const { listLoginHistory } = require('../lib/loginHistory');
 const { getDashboardStats } = require('../lib/stats');
-const { authApiFetch, SYSTEM_ADMIN_MESSAGES } = require('../lib/authApi');
+const { authApiFetch, systemAdminListUsers, SYSTEM_ADMIN_MESSAGES } = require('../lib/authApi');
 const asyncHandler = require('../lib/asyncHandler');
 
 const router = express.Router();
@@ -170,6 +170,25 @@ for (const action of ['revoke-sessions', 'disable-totp']) {
     res.json({ user: result.user });
   }));
 }
+
+// GET /api/auth-users?page=&page_size=&q=  (solo superadmin)
+// Todas las cuentas registradas en la auth-api para este sistema, incluidas
+// las que nunca completaron su primer login (esas no aparecen en
+// /api/local-users, que solo lista quienes ya usaron el panel alguna vez).
+// q busca por email, usuario o rut, del lado de la auth-api. Requiere
+// AUTH_API_SYSTEM_ADMIN_TOKEN; sin ella responde 503 igual que las demás
+// acciones que dependen de esa credencial.
+router.get('/auth-users', requireAuth, requireRole('superadmin'), asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page, 10) || undefined;
+  const pageSize = parseInt(req.query.page_size, 10) || undefined;
+  const q = String(req.query.q || '').trim().slice(0, 100) || undefined;
+  const result = await systemAdminListUsers({ page, pageSize, q });
+  if (!result.ok) {
+    const status = result.reason === 'unauthorized' ? 502 : 503;
+    return res.status(status).json({ error: SYSTEM_ADMIN_MESSAGES[result.reason], code: `auth_api_${result.reason}` });
+  }
+  res.json(result.data);
+}));
 
 // GET /api/local-users/:authUserId/logins?before=<id>&limit=<n>  (solo superadmin)
 // Datos de la persona + su historial de inicios de sesión.

@@ -36,7 +36,7 @@ empresa-app/
     │   ├── auth/                 # AuthContext (sesión y renovación), ProtectedRoute
     │   ├── components/           # Navbar, AdminSummary, SecurityCard, TotpSetup, UserSecurityActions
     │   ├── pages/                # registro y confirmación de correo, login (+ push), recuperar contraseña,
-    │   │                         # segundo factor, dashboard, usuarios (+ detalle), actividad
+    │   │                         # segundo factor, dashboard, usuarios (+ detalle), actividad, cuentas registradas
     │   ├── utils/                # formato de RUT e IP, descripción del navegador
     │   └── api.js                # cliente HTTP hacia empresa-backend
     └── .env.example
@@ -122,6 +122,7 @@ sincronizadas. Solo hay que volver a iniciar sesión cuando vence el
 | POST | `/auth/password-reset/confirm` | Confirmar código + nueva contraseña |
 | GET  | `/.well-known/jwks.json` | Clave pública para verificar el JWT localmente |
 | GET  | `/me` | Perfil (username, rut, método de segundo factor) con el `access_token` |
+| GET  | `/system-admin/users?page=&page_size=&q=` | Listar todas las cuentas registradas de este sistema, incluidas las que nunca completaron su primer login. `q` busca por email, usuario o rut |
 | POST | `/system-admin/users/{id}/ban` · `/unban` | Bloquear / desbloquear la cuenta (el ban también cierra sus sesiones) |
 | POST | `/system-admin/users/{id}/revoke-sessions` | Cerrar todas las sesiones de la cuenta |
 | POST | `/system-admin/users/{id}/disable-totp` | Desactivar la app autenticadora de la cuenta |
@@ -163,6 +164,7 @@ enlazados a la cuenta de la auth-api por su id (`sub` del JWT).
 | Bloquear / desbloquear cuentas | ✅ | ❌ | ❌ |
 | Ver historial de inicios de sesión | ✅ | ❌ | ❌ |
 | Ver registro de actividad | ✅ | ❌ | ❌ |
+| Ver todas las cuentas registradas | ✅ | ❌ | ❌ |
 
 > Hoy el rol `admin` no tiene permisos distintos a `user`. Está reservado
 > para las funciones que se agreguen más adelante.
@@ -201,8 +203,20 @@ enlazados a la cuenta de la auth-api por su id (`sub` del JWT).
   y desde qué IP. Incluye cambios de rol, bloqueos y desbloqueos (y si se
   aplicaron también en la auth-api), sesiones cerradas y apps
   autenticadoras desactivadas por un superadmin, y cuando alguien activa o
-  desactiva su propia app autenticadora. No se puede editar ni borrar desde
-  la app.
+  desactiva su propia app autenticadora. Bloquear/desbloquear y cambiar un
+  rol piden un **motivo obligatorio** (máx. 500 caracteres), que queda
+  guardado junto a la acción; uno largo se corta en la tabla con un enlace
+  "ver completo". Se puede filtrar por quién hizo la acción (email o IP), a
+  quién le pasó, tipo de acción y rango de fechas. No se puede editar ni
+  borrar desde la app.
+- **Cuentas registradas** (`/cuentas-registradas`): todas las cuentas de
+  este sistema en la auth-api, incluidas las que nunca completaron su
+  primer login (por eso no aparecen en Usuarios) — con su correo, si
+  verificaron el correo, si ya eligieron segundo factor y si están
+  baneadas. Solo lectura, paginada, con búsqueda por email, usuario o RUT
+  (se resuelve en la auth-api, no solo en lo ya cargado, así que funciona
+  sin importar cuántas páginas haya). Requiere `AUTH_API_SYSTEM_ADMIN_TOKEN`;
+  sin esa credencial no aparece el enlace en el menú.
 - **Limpieza automática**: al arrancar el backend y luego una vez al día se
   borran los inicios de sesión de más de **1 año** y la actividad de más de
   **3 años** (configurable con `LOGIN_HISTORY_RETENTION_DAYS` y
@@ -225,6 +239,7 @@ enlazados a la cuenta de la auth-api por su id (`sub` del JWT).
 | POST | `/api/local-users/:authUserId/disable-totp` | superadmin | Desactivar su app autenticadora (requiere `AUTH_API_SYSTEM_ADMIN_TOKEN`) |
 | GET | `/api/local-users/:authUserId/logins?before=` | superadmin | Datos + historial de inicios de sesión (de a 50) |
 | GET | `/api/audit-log?before=` | superadmin | Registro de actividad (de a 50) |
+| GET | `/api/auth-users?page=&page_size=&q=` | superadmin | Todas las cuentas registradas en la auth-api, incluidas las que nunca completaron su primer login. `q` busca por email, usuario o rut (requiere `AUTH_API_SYSTEM_ADMIN_TOKEN`) |
 | GET | `/api/auth/login/push-status?login_token=` | público* | Polling de la aprobación por push (ver Flujo de autenticación); `/auth/login/request-email-code`, el respaldo por correo, ya entra en el proxy `POST /api/auth/*` de arriba |
 
 \* Excepto activar o desactivar la app autenticadora desde el perfil

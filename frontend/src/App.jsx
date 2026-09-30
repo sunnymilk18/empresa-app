@@ -14,6 +14,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { UsuariosPage } from './pages/UsuariosPage';
 import { UsuarioDetallePage } from './pages/UsuarioDetallePage';
 import { ActividadPage } from './pages/ActividadPage';
+import { CuentasRegistradasPage } from './pages/CuentasRegistradasPage';
 
 export default function App() {
   return (
@@ -59,6 +60,14 @@ export default function App() {
               element={
                 <ProtectedRoute roles={['superadmin']}>
                   <ActividadPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/cuentas-registradas"
+              element={
+                <ProtectedRoute roles={['superadmin']}>
+                  <CuentasRegistradasPage />
                 </ProtectedRoute>
               }
             />

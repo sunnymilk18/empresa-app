@@ -71,6 +71,37 @@ async function systemAdminAction(authUserId, action) {
   return 'unavailable';
 }
 
+// Lista las cuentas registradas en la auth-api para este sistema (todas,
+// incluidas las que nunca completaron su primer login y por eso no aparecen
+// en /api/local-users) — requiere la misma credencial de administración por
+// sistema. q busca por email, usuario o rut, del lado de la auth-api (no del
+// navegador), así que funciona sin importar cuántas páginas haya. Nunca
+// lanza: devuelve { ok: true, data } con la respuesta tal cual la auth-api
+// ({ users, page, page_size, total }), o { ok: false, reason } con el mismo
+// significado que systemAdminAction ('unauthorized' | 'unavailable' | 'disabled').
+async function systemAdminListUsers({ page, pageSize, q } = {}) {
+  if (!config.authApiSystemAdminToken) return { ok: false, reason: 'disabled' };
+  const params = new URLSearchParams();
+  if (page) params.set('page', page);
+  if (pageSize) params.set('page_size', pageSize);
+  if (q) params.set('q', q);
+  const query = params.toString();
+
+  let res;
+  try {
+    res = await authApiFetch(`/system-admin/users${query ? `?${query}` : ''}`, {
+      headers: { 'X-System-Admin-Token': config.authApiSystemAdminToken },
+    });
+  } catch {
+    return { ok: false, reason: 'unavailable' };
+  }
+  if (res.status === 401) return { ok: false, reason: 'unauthorized' };
+  if (!res.ok) return { ok: false, reason: 'unavailable' };
+  const data = await res.json().catch(() => null);
+  if (!data) return { ok: false, reason: 'unavailable' };
+  return { ok: true, data };
+}
+
 // Texto para mostrar cuando una acción de moderación no se pudo aplicar.
 const SYSTEM_ADMIN_MESSAGES = {
   not_found: 'La cuenta ya no existe en el servicio de autenticación.',
@@ -86,5 +117,6 @@ module.exports = {
   authApiFetch,
   callAuthApi,
   systemAdminAction,
+  systemAdminListUsers,
   SYSTEM_ADMIN_MESSAGES,
 };

@@ -167,6 +167,18 @@ export const api = {
       { token }
     ),
   // filters: { before, actor, target, action, from, to } — se omiten los vacíos.
+  // Todas las cuentas registradas (incluidas las que nunca completaron su
+  // primer login). Requiere AUTH_API_SYSTEM_ADMIN_TOKEN en el backend.
+  // q busca por email, usuario o RUT, del lado de la auth-api (no filtra
+  // solo lo ya cargado en el navegador).
+  listAuthUsers: (token, { page, pageSize, q } = {}) => {
+    const params = new URLSearchParams();
+    if (page) params.set('page', page);
+    if (pageSize) params.set('page_size', pageSize);
+    if (q) params.set('q', q);
+    const query = params.toString();
+    return request(`/api/auth-users${query ? `?${query}` : ''}`, { token });
+  },
   listAuditLog: (token, filters = {}) => {
     const params = new URLSearchParams(
       Object.entries(filters).filter(([, value]) => value !== '' && value != null)
