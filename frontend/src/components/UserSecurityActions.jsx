@@ -2,6 +2,12 @@ import { useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { blockConfirmText, pendingText } from '../utils/moderation';
+import { ReasonModal } from './ReasonModal';
+
+// Reintentar lo pendiente en la auth-api no es una decisión nueva (ya se
+// decidió al bloquear/desbloquear la primera vez): no se le vuelve a pedir
+// motivo a la persona, se manda uno automático que deja constancia del porqué.
+const RETRY_REASON = 'Reintento de sincronización con el servicio de autenticación.';
 
 // "Acciones de seguridad" sobre la cuenta de otra persona, en su detalle:
 // bloquear/desbloquear (aquí y en la auth-api), cerrar todas sus sesiones y
@@ -12,6 +18,7 @@ export function UserSecurityActions({ user, onUserChange, lastMethod }) {
   const { accessToken, profile } = useAuth();
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState(null); // { type: 'success'|'warning'|'error', text }
+  const [showBlockModal, setShowBlockModal] = useState(false);
 
   const isMe = user.auth_user_id === profile?.id;
   const moderationEnabled = Boolean(profile?.features?.authApiModeration);
@@ -46,6 +53,18 @@ export function UserSecurityActions({ user, onUserChange, lastMethod }) {
   const blocked = Boolean(user.blocked_at);
   const pending = user.auth_api_pending_action;
 
+  // El motivo lo pide el modal, no window.confirm (ver ReasonModal).
+  async function confirmBlock(reason) {
+    const res = await api.setLocalUserBlocked(user.auth_user_id, !blocked, reason, accessToken);
+    if (res?.user) onUserChange(res.user);
+    setMessage(
+      res?.warning
+        ? { type: 'warning', text: res.warning }
+        : { type: 'success', text: blocked ? 'Cuenta desbloqueada.' : 'Cuenta bloqueada.' }
+    );
+    setShowBlockModal(false);
+  }
+
   return (
     <div className="card security-actions">
       <h2>Acciones de seguridad</h2>
@@ -65,16 +84,12 @@ export function UserSecurityActions({ user, onUserChange, lastMethod }) {
           type="button"
           className={`table-action ${blocked ? '' : 'table-action--danger'}`}
           disabled={Boolean(busy)}
-          onClick={() =>
-            run(
-              'block',
-              blocked ? null : blockConfirmText(user.email, moderationEnabled),
-              () => api.setLocalUserBlocked(user.auth_user_id, !blocked, accessToken),
-              blocked ? 'Cuenta desbloqueada.' : 'Cuenta bloqueada.'
-            )
-          }
+          onClick={() => {
+            setMessage(null);
+            setShowBlockModal(true);
+          }}
         >
-          {busy === 'block' ? 'Guardando...' : blocked ? 'Desbloquear' : 'Bloquear'}
+          {blocked ? 'Desbloquear' : 'Bloquear'}
         </button>
       </div>
 
@@ -89,7 +104,7 @@ export function UserSecurityActions({ user, onUserChange, lastMethod }) {
               run(
                 'retry',
                 null,
-                () => api.setLocalUserBlocked(user.auth_user_id, pending === 'ban', accessToken),
+                () => api.setLocalUserBlocked(user.auth_user_id, pending === 'ban', RETRY_REASON, accessToken),
                 'Aplicado también en el servicio de autenticación.'
               )
             }
@@ -161,6 +176,21 @@ export function UserSecurityActions({ user, onUserChange, lastMethod }) {
       )}
 
       {message && <p className={message.type}>{message.text}</p>}
+
+      {showBlockModal && (
+        <ReasonModal
+          title={blocked ? 'Desbloquear cuenta' : 'Bloquear cuenta'}
+          description={
+            blocked
+              ? `¿Desbloquear a ${user.email}? Podrá volver a entrar al sistema.`
+              : blockConfirmText(user.email, moderationEnabled)
+          }
+          confirmLabel={blocked ? 'Desbloquear' : 'Bloquear'}
+          danger={!blocked}
+          onConfirm={confirmBlock}
+          onCancel={() => setShowBlockModal(false)}
+        />
+      )}
     </div>
   );
 }

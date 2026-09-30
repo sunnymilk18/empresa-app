@@ -9,7 +9,7 @@ const {
   setBlocked,
   runIdentityAction,
 } = require('../lib/localUsers');
-const { listAuditLog } = require('../lib/audit');
+const { listAuditLog, AUDIT_ACTIONS } = require('../lib/audit');
 const { listLoginHistory } = require('../lib/loginHistory');
 const { getDashboardStats } = require('../lib/stats');
 const { authApiFetch, SYSTEM_ADMIN_MESSAGES } = require('../lib/authApi');
@@ -30,6 +30,16 @@ function pageParams(req) {
 // Quién está haciendo la acción, para el registro de auditoría.
 function actorOf(req) {
   return { id: req.authUser.id, email: req.authUser.email, ip: req.ip };
+}
+
+// Motivo obligatorio para bloqueos y cambios de rol (ver Actividad): sin él,
+// el registro de auditoría queda sin explicar la decisión. Devuelve el texto
+// recortado, o null si no es válido (para responder 400).
+const REASON_MAX_LENGTH = 500;
+function requiredReason(body) {
+  const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
+  if (!reason || reason.length > REASON_MAX_LENGTH) return null;
+  return reason;
 }
 
 // GET /api/me  (protegido)
@@ -88,30 +98,42 @@ router.get('/local-users', requireAuth, requireRole('superadmin'), asyncHandler(
 }));
 
 // PUT /api/local-users/:authUserId/role  (solo superadmin) - cambiar rol
+// Requiere un motivo (queda en Actividad, ver requiredReason).
 router.put('/local-users/:authUserId/role', requireAuth, requireRole('superadmin'), asyncHandler(async (req, res) => {
   const { role } = req.body;
   if (!ROLES.includes(role)) {
     return res.status(400).json({ error: `role debe ser uno de: ${ROLES.join(', ')}` });
   }
+  const reason = requiredReason(req.body);
+  if (!reason) {
+    return res.status(400).json({ error: `El motivo es obligatorio (máx. ${REASON_MAX_LENGTH} caracteres)` });
+  }
   // Evita que el sistema quede sin superadmin por un error propio.
   if (req.params.authUserId === req.authUser.id) {
     return res.status(400).json({ error: 'No puedes cambiar tu propio rol' });
   }
-  const updated = await setRole(req.params.authUserId, role, actorOf(req));
+  const updated = await setRole(req.params.authUserId, role, actorOf(req), reason);
   if (!updated) return res.status(404).json({ error: 'Usuario no encontrado' });
   res.json({ user: updated });
 }));
 
 // PUT /api/local-users/:authUserId/blocked  (solo superadmin) - bloquear/desbloquear
+// Requiere un motivo (queda en Actividad, ver requiredReason). Un reintento
+// de lo pendiente en la auth-api pasa por aquí también: el frontend manda un
+// motivo automático en ese caso, no le vuelve a preguntar a la persona.
 router.put('/local-users/:authUserId/blocked', requireAuth, requireRole('superadmin'), asyncHandler(async (req, res) => {
   const { blocked } = req.body;
   if (typeof blocked !== 'boolean') {
     return res.status(400).json({ error: 'blocked debe ser true o false' });
   }
+  const reason = requiredReason(req.body);
+  if (!reason) {
+    return res.status(400).json({ error: `El motivo es obligatorio (máx. ${REASON_MAX_LENGTH} caracteres)` });
+  }
   if (req.params.authUserId === req.authUser.id) {
     return res.status(400).json({ error: 'No puedes bloquearte a ti mismo' });
   }
-  const result = await setBlocked(req.params.authUserId, blocked, actorOf(req));
+  const result = await setBlocked(req.params.authUserId, blocked, actorOf(req), reason);
   if (!result) return res.status(404).json({ error: 'Usuario no encontrado' });
   // authApi: cómo terminó en la auth-api ('ok', 'not_found', 'unavailable',
   // 'unauthorized', 'disabled' o null si no hubo nada que hacer). El cambio
@@ -159,10 +181,20 @@ router.get('/local-users/:authUserId/logins', requireAuth, requireRole('superadm
   res.json({ user, logins, hasMore: logins.length === limit });
 }));
 
-// GET /api/audit-log?before=<id>&limit=<n>  (solo superadmin)
+// GET /api/audit-log?before=&limit=&actor=&target=&action=&from=&to=  (solo superadmin)
+// Filtros opcionales: actor/target (quién hizo / quién recibió la acción,
+// búsqueda parcial por email), action (una de AUDIT_ACTIONS) y from/to
+// (rango de fechas 'YYYY-MM-DD', ambos límites incluidos). Un valor inválido
+// se ignora en vez de fallar, igual que `before` fuera de rango.
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 router.get('/audit-log', requireAuth, requireRole('superadmin'), asyncHandler(async (req, res) => {
   const { before, limit } = pageParams(req);
-  const entries = await listAuditLog({ before, limit });
+  const actor = String(req.query.actor || '').trim().slice(0, 100) || undefined;
+  const target = String(req.query.target || '').trim().slice(0, 100) || undefined;
+  const action = AUDIT_ACTIONS.includes(req.query.action) ? req.query.action : undefined;
+  const from = DATE_RE.test(req.query.from || '') ? req.query.from : undefined;
+  const to = DATE_RE.test(req.query.to || '') ? req.query.to : undefined;
+  const entries = await listAuditLog({ before, limit, actor, target, action, from, to });
   res.json({ entries, hasMore: entries.length === limit });
 }));
 

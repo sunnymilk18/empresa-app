@@ -5,8 +5,13 @@ import { useAuth } from '../auth/AuthContext';
 import { formatRut } from '../utils/rut';
 import { formatIp } from '../utils/ip';
 import { blockConfirmText, pendingText } from '../utils/moderation';
+import { ReasonModal } from '../components/ReasonModal';
 
 const ROLES = ['superadmin', 'admin', 'user'];
+
+// Ver UserSecurityActions.jsx: reintentar lo pendiente no es una decisión
+// nueva, así que no se le vuelve a pedir motivo a la persona.
+const RETRY_REASON = 'Reintento de sincronización con el servicio de autenticación.';
 
 // Sin segundos: en esta tabla no aportan y le quitan espacio a las columnas.
 function formatDate(value) {
@@ -42,6 +47,9 @@ export function UsuariosPage() {
   const [savingId, setSavingId] = useState(null);
   // Aviso cuando un bloqueo se aplicó aquí pero no en la auth-api.
   const [warning, setWarning] = useState('');
+  // Usuario/rol pendiente de confirmar con motivo (ver ReasonModal).
+  const [blockModalUser, setBlockModalUser] = useState(null);
+  const [roleModal, setRoleModal] = useState(null); // { user, role }
   const moderationEnabled = Boolean(profile?.features?.authApiModeration);
 
   // Siempre la URL más reciente. La búsqueda se aplica con retraso desde un
@@ -124,23 +132,38 @@ export function UsuariosPage() {
     }
   }
 
-  function changeRole(authUserId, role) {
-    updateUser(authUserId, () => api.setLocalUserRole(authUserId, role, accessToken));
+  // El motivo lo pide el modal, no se aplica al elegir la opción (ver render
+  // del <select> más abajo).
+  function requestRoleChange(user, role) {
+    if (role === user.role) return;
+    setRoleModal({ user, role });
+  }
+
+  async function confirmRoleChange(reason) {
+    const { user, role } = roleModal;
+    await updateUser(user.auth_user_id, () => api.setLocalUserRole(user.auth_user_id, role, reason, accessToken));
+    setRoleModal(null);
   }
 
   function toggleBlocked(user) {
+    setBlockModalUser(user);
+  }
+
+  async function confirmBlockToggle(reason) {
+    const user = blockModalUser;
     const blocked = !user.blocked_at;
-    if (blocked && !window.confirm(blockConfirmText(user.email, moderationEnabled))) return;
-    updateUser(user.auth_user_id, () =>
-      api.setLocalUserBlocked(user.auth_user_id, blocked, accessToken)
+    await updateUser(user.auth_user_id, () =>
+      api.setLocalUserBlocked(user.auth_user_id, blocked, reason, accessToken)
     );
+    setBlockModalUser(null);
   }
 
   // Reintenta en la auth-api el ban/unban que quedó pendiente (repite la
-  // misma acción: el backend solo rehace la parte que faltaba).
+  // misma acción: el backend solo rehace la parte que faltaba). No es una
+  // decisión nueva, así que no pide motivo (ver RETRY_REASON).
   function retryPending(user) {
     updateUser(user.auth_user_id, () =>
-      api.setLocalUserBlocked(user.auth_user_id, user.auth_api_pending_action === 'ban', accessToken)
+      api.setLocalUserBlocked(user.auth_user_id, user.auth_api_pending_action === 'ban', RETRY_REASON, accessToken)
     );
   }
 
@@ -223,7 +246,7 @@ export function UsuariosPage() {
                         <select
                           value={u.role}
                           disabled={savingId === u.auth_user_id}
-                          onChange={(e) => changeRole(u.auth_user_id, e.target.value)}
+                          onChange={(e) => requestRoleChange(u, e.target.value)}
                         >
                           {ROLES.map((r) => (
                             <option key={r} value={r}>{r}</option>
@@ -295,6 +318,31 @@ export function UsuariosPage() {
             </button>
           </div>
         </div>
+      )}
+
+      {blockModalUser && (
+        <ReasonModal
+          title={blockModalUser.blocked_at ? 'Desbloquear cuenta' : 'Bloquear cuenta'}
+          description={
+            blockModalUser.blocked_at
+              ? `¿Desbloquear a ${blockModalUser.email}? Podrá volver a entrar al sistema.`
+              : blockConfirmText(blockModalUser.email, moderationEnabled)
+          }
+          confirmLabel={blockModalUser.blocked_at ? 'Desbloquear' : 'Bloquear'}
+          danger={!blockModalUser.blocked_at}
+          onConfirm={confirmBlockToggle}
+          onCancel={() => setBlockModalUser(null)}
+        />
+      )}
+
+      {roleModal && (
+        <ReasonModal
+          title="Cambiar rol"
+          description={`¿Cambiar el rol de ${roleModal.user.email} de "${roleModal.user.role}" a "${roleModal.role}"?`}
+          confirmLabel="Cambiar rol"
+          onConfirm={confirmRoleChange}
+          onCancel={() => setRoleModal(null)}
+        />
       )}
     </div>
   );

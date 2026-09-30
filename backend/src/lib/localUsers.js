@@ -105,7 +105,7 @@ async function checkAdminChange(query, actor, target, removesActiveSuperadmin) {
 // se guarda junto con su registro de auditoría en una misma transacción. Si
 // el cambio no altera nada, no se registra. Devuelve el usuario actualizado,
 // o null si no existe. Lanza AdminChangeError si el cambio no se permite.
-async function setRole(authUserId, role, actor) {
+async function setRole(authUserId, role, actor, reason) {
   return db.transaction(async (query) => {
     await waitAdminTurn(query);
     const { rows } = await query('SELECT * FROM local_users WHERE auth_user_id = $1 FOR UPDATE', [authUserId]);
@@ -117,7 +117,7 @@ async function setRole(authUserId, role, actor) {
       'UPDATE local_users SET role = $1 WHERE auth_user_id = $2 RETURNING *',
       [role, authUserId]
     );
-    await logAction(query, actor, 'role_changed', user, { from: user.role, to: role });
+    await logAction(query, actor, 'role_changed', user, { from: user.role, to: role, reason });
     return updated.rows[0];
   });
 }
@@ -133,8 +133,11 @@ async function setRole(authUserId, role, actor) {
 // La llamada a la auth-api se hace dentro del turno, para que el resultado
 // quede en el mismo registro de actividad; solo son acciones del superadmin.
 // Devuelve { user, authApi } (authApi: ver authApi.systemAdminAction, o null
-// si no había nada que hacer) o null si el usuario no existe.
-async function setBlocked(authUserId, blocked, actor) {
+// si no había nada que hacer) o null si el usuario no existe. `reason` solo
+// se guarda cuando el estado realmente cambia (bloqueo/desbloqueo real); un
+// reintento de lo pendiente en la auth-api no es una decisión nueva, así que
+// no lo necesita (ver routes/me.js).
+async function setBlocked(authUserId, blocked, actor, reason) {
   return db.transaction(async (query) => {
     await waitAdminTurn(query);
     const { rows } = await query('SELECT * FROM local_users WHERE auth_user_id = $1 FOR UPDATE', [authUserId]);
@@ -156,7 +159,7 @@ async function setBlocked(authUserId, blocked, actor) {
       [authUserId, pending]
     );
     if (changed) {
-      await logAction(query, actor, blocked ? 'user_blocked' : 'user_unblocked', user, { auth_api: authApi });
+      await logAction(query, actor, blocked ? 'user_blocked' : 'user_unblocked', user, { auth_api: authApi, reason });
     } else if (authApi === 'ok' || authApi === 'not_found') {
       await logAction(query, actor, 'auth_api_synced', user, { action, auth_api: authApi });
     }

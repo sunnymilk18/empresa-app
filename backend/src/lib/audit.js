@@ -17,16 +17,64 @@ async function logAction(query, actor, action, target, details = {}) {
   );
 }
 
-const listStmt = db.prepare(`
-  SELECT * FROM audit_log
-  WHERE ($1::int IS NULL OR id < $1)
-  ORDER BY id DESC
-  LIMIT $2
-`);
+// Acciones válidas para el filtro `action` (ver routes/me.js). Única fuente
+// de verdad: el frontend arma su desplegable a partir de esta misma lista
+// (GET /api/audit-log no la expone; el frontend la trae de un objeto propio
+// con las mismas claves, ver ActividadPage.jsx).
+const AUDIT_ACTIONS = [
+  'role_changed',
+  'user_blocked',
+  'user_unblocked',
+  'auth_api_synced',
+  'sessions_revoked',
+  'totp_disabled_by_admin',
+  'totp_enabled',
+  'totp_disabled',
+];
 
-// Más recientes primero. `before` (id) permite pedir la página siguiente.
-async function listAuditLog({ before = null, limit = 50 } = {}) {
-  return listStmt.all(before, limit);
+// Escapa % _ y \ para que el texto buscado se tome literal en ILIKE (mismo
+// criterio que localUsers.js).
+function likePattern(text) {
+  return `%${text.replace(/[\\%_]/g, '\\$&')}%`;
 }
 
-module.exports = { logAction, listAuditLog };
+// Más recientes primero. `before` (id) permite pedir la página siguiente.
+// Filtros opcionales, todos ya validados por quien llama (routes/me.js):
+//   - actor: búsqueda parcial por email de quien hizo la acción, o por la IP
+//     desde donde la hizo si el texto tiene forma de IP (mismo criterio que
+//     la búsqueda de Usuarios: IPv4 como "190.22" o IPv6 como "2800:150::1")
+//   - target: búsqueda parcial por email de quien recibió la acción
+//   - action: una de AUDIT_ACTIONS
+//   - from / to: rango de fechas 'YYYY-MM-DD', ambos límites incluidos
+async function listAuditLog({ before = null, limit = 50, actor, target, action, from, to } = {}) {
+  const where = [];
+  const params = [];
+  const param = (value) => {
+    params.push(value);
+    return `$${params.length}`;
+  };
+
+  if (before != null) where.push(`id < ${param(before)}`);
+  if (actor) {
+    const text = param(likePattern(actor));
+    // "quién hizo la acción" busca por su email, o por la IP desde donde la
+    // hizo si el texto parece una IP (no un email, así que no hace falta OR).
+    const looksLikeIp = /^[0-9a-fA-F.:]+$/.test(actor) && /[.:]/.test(actor);
+    where.push(looksLikeIp ? `ip ILIKE ${text}` : `actor_email ILIKE ${text}`);
+  }
+  if (target) where.push(`target_email ILIKE ${param(likePattern(target))}`);
+  if (action) where.push(`action = ${param(action)}`);
+  if (from) where.push(`created_at >= ${param(from)}::date`);
+  // < (to + 1 día) en vez de <= to, para incluir todas las horas del día "hasta".
+  if (to) where.push(`created_at < (${param(to)}::date + INTERVAL '1 day')`);
+
+  const sql = `
+    SELECT * FROM audit_log
+    ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+    ORDER BY id DESC
+    LIMIT ${param(limit)}
+  `;
+  return db.prepare(sql).all(...params);
+}
+
+module.exports = { logAction, listAuditLog, AUDIT_ACTIONS };

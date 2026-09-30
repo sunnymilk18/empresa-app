@@ -154,10 +154,11 @@ export const api = {
     const query = params.toString();
     return request(`/api/local-users${query ? `?${query}` : ''}`, { token });
   },
-  setLocalUserRole: (authUserId, role, token) =>
+  // reason: obligatorio, queda en Actividad (ver ReasonModal).
+  setLocalUserRole: (authUserId, role, reason, token) =>
     request(`/api/local-users/${encodeURIComponent(authUserId)}/role`, {
       method: 'PUT',
-      body: { role },
+      body: { role, reason },
       token,
     }),
   getUserLogins: (authUserId, token, before) =>
@@ -165,18 +166,25 @@ export const api = {
       `/api/local-users/${encodeURIComponent(authUserId)}/logins${before ? `?before=${before}` : ''}`,
       { token }
     ),
-  listAuditLog: (token, before) =>
-    request(`/api/audit-log${before ? `?before=${before}` : ''}`, { token }),
+  // filters: { before, actor, target, action, from, to } — se omiten los vacíos.
+  listAuditLog: (token, filters = {}) => {
+    const params = new URLSearchParams(
+      Object.entries(filters).filter(([, value]) => value !== '' && value != null)
+    );
+    const query = params.toString();
+    return request(`/api/audit-log${query ? `?${query}` : ''}`, { token });
+  },
   // Moderación en la auth-api (requiere AUTH_API_SYSTEM_ADMIN_TOKEN en el backend)
   revokeUserSessions: (authUserId, token) =>
     request(`/api/local-users/${encodeURIComponent(authUserId)}/revoke-sessions`, { method: 'POST', token }),
   disableUserTotp: (authUserId, token) =>
     request(`/api/local-users/${encodeURIComponent(authUserId)}/disable-totp`, { method: 'POST', token }),
-  // Devuelve { user, authApi, warning? }: `warning` si no se pudo aplicar en la auth-api.
-  setLocalUserBlocked: (authUserId, blocked, token) =>
+  // reason: obligatorio, queda en Actividad (ver ReasonModal). Devuelve
+  // { user, authApi, warning? }: `warning` si no se pudo aplicar en la auth-api.
+  setLocalUserBlocked: (authUserId, blocked, reason, token) =>
     request(`/api/local-users/${encodeURIComponent(authUserId)}/blocked`, {
       method: 'PUT',
-      body: { blocked },
+      body: { blocked, reason },
       token,
     }),
 };
