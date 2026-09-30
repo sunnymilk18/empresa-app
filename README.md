@@ -206,9 +206,9 @@ enlazados a la cuenta de la auth-api por su id (`sub` del JWT).
   desactiva su propia app autenticadora. Bloquear/desbloquear y cambiar un
   rol piden un **motivo obligatorio** (máx. 500 caracteres), que queda
   guardado junto a la acción; uno largo se corta en la tabla con un enlace
-  "ver completo". Se puede filtrar por quién hizo la acción (email o IP), a
-  quién le pasó, tipo de acción y rango de fechas. No se puede editar ni
-  borrar desde la app.
+  "ver completo". Se puede filtrar por quién hizo la acción (email, usuario,
+  RUT o IP), a quién le pasó (email, usuario o RUT), tipo de acción y rango
+  de fechas. No se puede editar ni borrar desde la app.
 - **Cuentas registradas** (`/cuentas-registradas`): todas las cuentas de
   este sistema en la auth-api, incluidas las que nunca completaron su
   primer login (por eso no aparecen en Usuarios) — con su correo, si

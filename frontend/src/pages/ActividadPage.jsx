@@ -200,17 +200,19 @@ export function ActividadPage() {
       <div className="toolbar">
         <input
           type="search"
-          placeholder="Quién hizo la acción (correo o IP)"
+          placeholder="Quién hizo la acción"
+          title="Busca por correo, usuario, RUT o IP"
           value={actorInput}
           onChange={(e) => setActorInput(e.target.value)}
-          aria-label="Buscar por quién hizo la acción, correo o IP"
+          aria-label="Buscar por quién hizo la acción: correo, usuario, RUT o IP"
         />
         <input
           type="search"
           placeholder="A quién le pasó"
+          title="Busca por correo, usuario o RUT"
           value={targetInput}
           onChange={(e) => setTargetInput(e.target.value)}
-          aria-label="Buscar por quién recibió la acción"
+          aria-label="Buscar por quién recibió la acción: correo, usuario o RUT"
         />
         <select
           value={action}

@@ -38,12 +38,35 @@ function likePattern(text) {
   return `%${text.replace(/[\\%_]/g, '\\$&')}%`;
 }
 
+// Condiciones para buscar "por persona" (actor o target): por su email
+// (columna propia de audit_log) o, cruzando con local_users, por su usuario
+// o su RUT. Quien actuó o quien recibió una acción siempre está en
+// local_users — tuvo que iniciar sesión en el panel al menos una vez para
+// eso — así que no hace falta pedirle nada a la auth-api, a diferencia de
+// Cuentas registradas. Mismo criterio de "parece un RUT" que ya usa Usuarios
+// (listLocalUsers): solo se suma esa condición si el texto tiene esa forma,
+// así "usuario1" no encuentra a todos los que tienen un 1 en el RUT.
+function personConditions(emailColumn, idColumn, text, emailPattern, param) {
+  const conditions = [
+    `${emailColumn} ILIKE ${emailPattern}`,
+    `EXISTS (SELECT 1 FROM local_users lu WHERE lu.auth_user_id = ${idColumn} AND lu.username ILIKE ${emailPattern})`,
+  ];
+  if (/^[\d.\-\skK]+$/.test(text)) {
+    const rutDigits = text.replace(/[^0-9kK]/g, '');
+    if (rutDigits) {
+      const rutPattern = param(likePattern(rutDigits));
+      conditions.push(`EXISTS (SELECT 1 FROM local_users lu WHERE lu.auth_user_id = ${idColumn} AND lu.rut ILIKE ${rutPattern})`);
+    }
+  }
+  return conditions;
+}
+
 // Más recientes primero. `before` (id) permite pedir la página siguiente.
 // Filtros opcionales, todos ya validados por quien llama (routes/me.js):
-//   - actor: búsqueda parcial por email de quien hizo la acción, o por la IP
+//   - actor: quién hizo la acción — por email, usuario, RUT, o por la IP
 //     desde donde la hizo si el texto tiene forma de IP (mismo criterio que
 //     la búsqueda de Usuarios: IPv4 como "190.22" o IPv6 como "2800:150::1")
-//   - target: búsqueda parcial por email de quien recibió la acción
+//   - target: a quién le pasó — por email, usuario o RUT
 //   - action: una de AUDIT_ACTIONS
 //   - from / to: rango de fechas 'YYYY-MM-DD', ambos límites incluidos
 async function listAuditLog({ before = null, limit = 50, actor, target, action, from, to } = {}) {
@@ -57,12 +80,18 @@ async function listAuditLog({ before = null, limit = 50, actor, target, action, 
   if (before != null) where.push(`id < ${param(before)}`);
   if (actor) {
     const text = param(likePattern(actor));
-    // "quién hizo la acción" busca por su email, o por la IP desde donde la
-    // hizo si el texto parece una IP (no un email, así que no hace falta OR).
-    const looksLikeIp = /^[0-9a-fA-F.:]+$/.test(actor) && /[.:]/.test(actor);
-    where.push(looksLikeIp ? `ip ILIKE ${text}` : `actor_email ILIKE ${text}`);
+    const conditions = personConditions('actor_email', 'actor_auth_user_id', actor, text, param);
+    // Solo si parece una IP: no es un email/usuario/RUT, así que no compite
+    // con esas búsquedas.
+    if (/^[0-9a-fA-F.:]+$/.test(actor) && /[.:]/.test(actor)) {
+      conditions.push(`ip ILIKE ${text}`);
+    }
+    where.push(`(${conditions.join(' OR ')})`);
   }
-  if (target) where.push(`target_email ILIKE ${param(likePattern(target))}`);
+  if (target) {
+    const text = param(likePattern(target));
+    where.push(`(${personConditions('target_email', 'target_auth_user_id', target, text, param).join(' OR ')})`);
+  }
   if (action) where.push(`action = ${param(action)}`);
   if (from) where.push(`created_at >= ${param(from)}::date`);
   // < (to + 1 día) en vez de <= to, para incluir todas las horas del día "hasta".
