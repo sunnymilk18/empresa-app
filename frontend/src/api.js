@@ -2,37 +2,38 @@ const API_URL = import.meta.env.VITE_API_URL;
 
 // --- Renovación automática de la sesión ------------------------------------
 // El access_token dura poco (15 min en la auth-api). Cuando el backend
-// responde 401, pedimos un par nuevo con el refresh_token y repetimos la
-// petición. AuthContext registra cómo leer/guardar la sesión.
+// responde 401, pedimos uno nuevo y repetimos la petición. El refresh_token
+// vive en una cookie httpOnly que pone empresa-backend (ver README,
+// "Seguridad"): este archivo nunca lo ve ni lo manda a mano, el navegador la
+// adjunta solo. AuthContext registra cómo leer/guardar el access_token.
 let authHooks = null;
 export function configureAuth(hooks) {
   authHooks = hooks;
 }
 
-// El refresh_token se invalida al usarlo (la auth-api lo rota), así que dos
-// renovaciones simultáneas harían fallar a la segunda. Por eso todas las
-// peticiones que fallen a la vez esperan esta misma promesa.
+// La auth-api rota el refresh_token en cada renovación (el anterior deja de
+// servir), así que dos renovaciones simultáneas en esta misma pestaña harían
+// fallar a la segunda. Por eso todas las peticiones que fallen a la vez
+// esperan esta misma promesa.
 let refreshing = null;
 function refreshAccessToken() {
   if (!refreshing) {
     refreshing = (async () => {
       const current = authHooks.getSession();
-      if (!current?.refresh_token) return null;
+      if (!current?.access_token) return null; // no hay sesión que renovar
       try {
-        const tokens = await request('/api/auth/refresh', {
-          method: 'POST',
-          body: { refresh_token: current.refresh_token },
-        });
+        const tokens = await request('/api/auth/refresh', { method: 'POST' });
         authHooks.onRefreshed(tokens);
         return tokens.access_token;
       } catch (err) {
         // Servicio caído (no es que la sesión sea inválida): no la cerramos,
         // propagamos el error para que se muestre.
         if (isUnavailable(err)) throw err;
-        // Otra pestaña pudo haber renovado justo antes con el mismo token:
-        // si dejó uno nuevo guardado, usamos ese en vez de cerrar la sesión.
+        // Otra pestaña pudo haber renovado justo antes (comparten la misma
+        // cookie del navegador): si ya dejó un access_token nuevo guardado,
+        // lo usamos en vez de cerrar la sesión.
         const latest = authHooks.getSession();
-        if (latest?.refresh_token && latest.refresh_token !== current.refresh_token) {
+        if (latest?.access_token && latest.access_token !== current.access_token) {
           return latest.access_token;
         }
         authHooks.onExpired();
@@ -61,6 +62,10 @@ async function send(path, { method, body, token }) {
   try {
     return await fetch(`${API_URL}${path}`, {
       method,
+      // Necesario para que el navegador mande (y guarde) la cookie httpOnly
+      // del refresh_token, que vive en empresa-backend, no en este origen
+      // cuando el frontend corre en otro puerto (p. ej. Vite en :5173).
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -119,8 +124,9 @@ export const api = {
     request(`/api/auth/login/push-status?login_token=${encodeURIComponent(loginToken)}`),
   requestLoginEmailCode: (payload) =>
     request('/api/auth/login/request-email-code', { method: 'POST', body: payload }),
-  refresh: (payload) => request('/api/auth/refresh', { method: 'POST', body: payload }),
-  logout: (payload) => request('/api/auth/logout', { method: 'POST', body: payload }),
+  // El refresh_token viaja en la cookie httpOnly, no en el cuerpo: no se
+  // pasa nada aquí (ver refreshAccessToken más arriba).
+  logout: () => request('/api/auth/logout', { method: 'POST' }),
 
   // App autenticadora (TOTP). Con { login_token } en el primer login; con
   // `token` (sesión iniciada) desde el perfil.

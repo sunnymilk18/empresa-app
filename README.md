@@ -3,9 +3,10 @@
 Sistema de administración de una empresa ficticia que **consume**
 `auth-2fa-api-go` como cliente externo: no reimplementa su lógica de
 autenticación ni accede a su base de datos. Incluye el flujo real de
-registro, login y segundo factor (código por correo o app autenticadora), y
-un panel para un **superadmin**: usuarios, roles, bloqueos, historial de
-inicios de sesión, registro de actividad y un resumen del sistema.
+registro, login y segundo factor (código por correo, app autenticadora o
+aprobación por notificación push desde `auth-2fa-app`), y un panel para un
+**superadmin**: usuarios, roles, bloqueos, historial de inicios de sesión,
+registro de actividad y un resumen del sistema.
 
 ## Estructura
 
@@ -24,16 +25,17 @@ empresa-app/
 │   │   │   ├── loginHistory.js   # historial de inicios de sesión
 │   │   │   ├── stats.js          # resumen del dashboard
 │   │   │   ├── blocked.js        # respuesta para cuentas bloqueadas
+│   │   │   ├── retention.js      # limpieza automática de historial y actividad
 │   │   │   └── asyncHandler.js   # errores de handlers async -> middleware de errores
 │   │   └── routes/
-│   │       ├── auth.js           # proxy hacia la auth-api (oculta la API key)
+│   │       ├── auth.js           # proxy hacia la auth-api (oculta la API key, pone el refresh_token en cookie httpOnly)
 │   │       └── me.js             # perfil + panel del superadmin
 │   └── .env.example
 └── frontend/         # React + Vite
     ├── src/
     │   ├── auth/                 # AuthContext (sesión y renovación), ProtectedRoute
-    │   ├── components/           # Navbar, AdminSummary, SecurityCard, TotpSetup
-    │   ├── pages/                # registro y confirmación de correo, login, recuperar contraseña,
+    │   ├── components/           # Navbar, AdminSummary, SecurityCard, TotpSetup, UserSecurityActions
+    │   ├── pages/                # registro y confirmación de correo, login (+ push), recuperar contraseña,
     │   │                         # segundo factor, dashboard, usuarios (+ detalle), actividad
     │   ├── utils/                # formato de RUT e IP, descripción del navegador
     │   └── api.js                # cliente HTTP hacia empresa-backend
@@ -81,15 +83,22 @@ Todo pasa por `empresa-backend`, que:
    auth-api, `OTP_TTL`).
 5. **Siguientes logins**: después de la contraseña va directo a
    `/verify-otp` (código del correo o de la app). Si es por correo, puede
-   pedir que se reenvíe.
+   pedir que se reenvíe. **Excepción:** si la cuenta ya emparejó un celular
+   con `auth-2fa-app` y activó ahí la aprobación por notificación push, en
+   vez del código va a `/aprobar-celular`: espera a que se apruebe desde el
+   teléfono (con un número de dos dígitos a confirmar, para evitar que se
+   apruebe "a ciegas"), con la opción de caer al código por correo si no se
+   puede usar el celular.
 6. **Desde el dashboard**, cualquier persona puede activar o desactivar la
    app autenticadora en la tarjeta **Seguridad**.
 
 La sesión se **renueva sola**: el `access_token` dura poco (15 minutos por
-defecto en la auth-api) y, cuando vence, el frontend pide uno nuevo con el
-`refresh_token` (7 días por defecto) sin que la persona lo note. Las
-pestañas abiertas se mantienen sincronizadas. Solo hay que volver a
-iniciar sesión cuando vence el `refresh_token` o al presionar "Salir".
+defecto en la auth-api) y, cuando vence, el frontend le pide uno nuevo a
+`empresa-backend`, que renueva contra la auth-api usando el `refresh_token`
+(7 días por defecto) que guarda en una cookie `httpOnly` — nunca lo ve el
+navegador (ver "Seguridad"). Las pestañas abiertas se mantienen
+sincronizadas. Solo hay que volver a iniciar sesión cuando vence el
+`refresh_token` o al presionar "Salir".
 
 ### Endpoints de la auth-api que se usan
 
@@ -101,6 +110,8 @@ iniciar sesión cuando vence el `refresh_token` o al presionar "Salir".
 | POST | `/auth/login` | Valida credenciales, devuelve `login_token` (y `needs_2fa_setup` en el primer login) |
 | POST | `/auth/login/send-email-code` | Primer login: elegir código por correo |
 | POST | `/auth/login/resend-code` | Reenviar el código de login por correo |
+| GET  | `/auth/login/push-status` | Consulta (polling) si el celular ya aprobó el login; en `approved` devuelve `access_token` + `refresh_token` |
+| POST | `/auth/login/request-email-code` | Respaldo por correo cuando el login solo ofreció push |
 | POST | `/auth/verify-otp` | Valida el código (correo o app), devuelve `access_token` + `refresh_token` |
 | POST | `/auth/totp/enroll` | Iniciar la activación de la app autenticadora (devuelve el `otpauth_url` del QR) |
 | POST | `/auth/totp/confirm` | Confirmar la activación con el primer código de la app |
@@ -214,6 +225,7 @@ enlazados a la cuenta de la auth-api por su id (`sub` del JWT).
 | POST | `/api/local-users/:authUserId/disable-totp` | superadmin | Desactivar su app autenticadora (requiere `AUTH_API_SYSTEM_ADMIN_TOKEN`) |
 | GET | `/api/local-users/:authUserId/logins?before=` | superadmin | Datos + historial de inicios de sesión (de a 50) |
 | GET | `/api/audit-log?before=` | superadmin | Registro de actividad (de a 50) |
+| GET | `/api/auth/login/push-status?login_token=` | público* | Polling de la aprobación por push (ver Flujo de autenticación); `/auth/login/request-email-code`, el respaldo por correo, ya entra en el proxy `POST /api/auth/*` de arriba |
 
 \* Excepto activar o desactivar la app autenticadora desde el perfil
 (`/api/auth/totp/*` sin `login_token`), que requiere sesión.
@@ -301,10 +313,12 @@ Queda escuchando en `http://localhost:5173`.
   lógica de la auth-api, solo valida la firma RS256 que ella ya emitió).
 - El **código QR** de la app autenticadora se genera **dentro del
   navegador**: la clave secreta nunca se envía a servicios externos.
-- Para esta demo, el frontend guarda `access_token`/`refresh_token` en
-  `localStorage`. En producción, lo más seguro es que el `refresh_token`
-  viva en una cookie `httpOnly` puesta por `empresa-backend`, no accesible
-  desde JavaScript.
+- El frontend guarda solo el `access_token` (dura 15 min) en `localStorage`.
+  El `refresh_token` nunca llega al navegador como JSON: `empresa-backend`
+  lo deja en una cookie `httpOnly`, `SameSite=Lax` y `Secure` por defecto (así
+  que solo viaja por HTTPS) — invisible para JavaScript, un ataque de XSS no
+  puede robarlo. En desarrollo local por HTTP, poné `COOKIE_SECURE=false` en
+  el `.env` del backend.
 - La base de datos de `empresa-backend` es completamente independiente de
   la base de la auth-api: no se comparte ni se accede directamente a ella.
 - **Detrás de un proxy** (Nginx, Cloudflare, etc.) hay que configurar
@@ -327,7 +341,10 @@ Queda escuchando en `http://localhost:5173`.
 - No se registran los intentos con contraseña incorrecta (en ese punto no se
   sabe con certeza de qué cuenta son); de eso se encarga la auth-api con su
   bloqueo temporal por intentos fallidos.
-- `auth-2fa-api-go` también ofrece aprobación por notificación push y
-  dispositivos de confianza, que quedan fuera del alcance de este proyecto.
+- La aprobación por notificación push (ver "Flujo de autenticación") solo
+  funciona si la cuenta ya emparejó un celular y activó el push desde
+  `auth-2fa-app` — eso se hace en esa app, no en empresa-app. El resto de la
+  gestión de dispositivos de confianza (registrar, listar, revocar) también
+  vive solo en `auth-2fa-app`.
 - Si tu API key fue compartida por accidente en algún lugar público,
   rótala antes de usar este proyecto en algo real.

@@ -35,6 +35,10 @@ const config = {
   // Tiempo máximo de espera de cada llamada a la auth-api (ms).
   authApiTimeoutMs: Number(process.env.AUTH_API_TIMEOUT_MS) || 10000,
   databaseUrl: required('DATABASE_URL'),
+  // Cookie httpOnly donde vive el refresh_token (ver README, "Seguridad").
+  // Secure por defecto: el navegador no la manda salvo por HTTPS. Ponla en
+  // "false" SOLO para desarrollo local por HTTP (nunca en producción).
+  cookieSecure: process.env.COOKIE_SECURE !== 'false',
   // Limpieza automática de registros antiguos (ver lib/retention.js).
   loginHistoryRetentionDays: retentionDays('LOGIN_HISTORY_RETENTION_DAYS', 365),
   auditLogRetentionDays: retentionDays('AUDIT_LOG_RETENTION_DAYS', 1095),

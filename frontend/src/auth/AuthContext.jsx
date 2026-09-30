@@ -3,10 +3,10 @@ import { api, configureAuth, isUnavailable } from '../api';
 
 const AuthContext = createContext(null);
 
-// Almacenamiento de sesión para esta DEMO local: localStorage. Documentado
-// a propósito en el README (sección "Seguridad") — en una app real de
-// producción, lo más seguro es guardar el refresh_token en una cookie
-// httpOnly puesta por el backend, no accesible desde JavaScript.
+// Guardamos solo el access_token, en localStorage (dura poco, 15 min, así
+// que el riesgo de que quede expuesto a JavaScript es acotado). El
+// refresh_token nunca pasa por aquí: vive en una cookie httpOnly que pone
+// empresa-backend, invisible para este código (ver README, "Seguridad").
 const STORAGE_KEY = 'empresa_app_session';
 
 function loadSession() {
@@ -106,14 +106,12 @@ export function AuthProvider({ children }) {
   }
 
   async function logout() {
-    // El refresh_token más reciente puede haberlo guardado otra pestaña.
-    const current = loadSession() ?? tokens;
-    if (current?.refresh_token) {
-      try {
-        await api.logout({ refresh_token: current.refresh_token });
-      } catch {
-        // best-effort: igual limpiamos la sesión local
-      }
+    // El refresh_token a revocar lo lee el backend de su propia cookie
+    // httpOnly, no hace falta (ni se puede) mandarlo desde aquí.
+    try {
+      await api.logout();
+    } catch {
+      // best-effort: igual limpiamos la sesión local
     }
     setSession(null);
     setProfile(null);

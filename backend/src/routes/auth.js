@@ -1,5 +1,6 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const config = require('../config');
 const { requireAuth } = require('../middleware/auth');
 const { recordLogin } = require('../lib/localUsers');
 const { BLOCKED_RESPONSE } = require('../lib/blocked');
@@ -19,6 +20,42 @@ const router = express.Router();
 
 function forward(res, upstream) {
   return res.status(upstream.status).json(upstream.data ?? {});
+}
+
+// --- refresh_token en cookie httpOnly ---------------------------------------
+// El refresh_token nunca llega al navegador como JSON legible por JavaScript:
+// vive en una cookie httpOnly que solo viaja entre el navegador y este
+// backend (ver README, "Seguridad"). path la limita a las rutas de auth, para
+// que no se mande de vuelta en cada llamada a /api/me, /api/local-users, etc.
+const REFRESH_COOKIE = 'refresh_token';
+const REFRESH_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: config.cookieSecure,
+  sameSite: 'lax',
+  path: '/api/auth',
+};
+
+function setRefreshCookie(res, refreshToken) {
+  res.cookie(REFRESH_COOKIE, refreshToken, {
+    ...REFRESH_COOKIE_OPTIONS,
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días, igual que REFRESH_TOKEN_TTL en la auth-api
+  });
+}
+
+function clearRefreshCookie(res) {
+  res.clearCookie(REFRESH_COOKIE, REFRESH_COOKIE_OPTIONS);
+}
+
+// Como forward(), pero para respuestas que pueden traer un refresh_token: lo
+// saca del cuerpo y lo deja en la cookie httpOnly en vez de mandarlo al
+// navegador como JSON.
+function forwardSession(res, upstream) {
+  const data = { ...(upstream.data ?? {}) };
+  if (data.refresh_token) {
+    setRefreshCookie(res, data.refresh_token);
+    delete data.refresh_token;
+  }
+  return res.status(upstream.status).json(data);
 }
 
 // Cuando un login termina (OTP o TOTP) registramos a la persona en
@@ -88,9 +125,10 @@ async function finishLogin(req, res, upstream) {
     await callAuthApi('/auth/logout', {
       body: { refresh_token: upstream.data.refresh_token },
     }).catch(() => {});
+    clearRefreshCookie(res);
     res.status(403).json(BLOCKED_RESPONSE);
   } else {
-    forward(res, upstream);
+    forwardSession(res, upstream);
   }
   return localUser;
 }
@@ -177,17 +215,33 @@ router.post('/login/request-email-code', asyncHandler(async (req, res) => {
 }));
 
 // POST /api/auth/refresh  ->  POST /auth/refresh
+// El refresh_token viene de la cookie httpOnly, nunca del cuerpo: el
+// navegador no tiene forma de leerlo ni de mandarlo a mano (ver README,
+// "Seguridad"). La auth-api rota el token en cada renovación; el nuevo
+// también se guarda en la cookie, nunca en la respuesta JSON.
 router.post('/refresh', asyncHandler(async (req, res) => {
-  const { refresh_token } = req.body;
-  const upstream = await callAuthApi('/auth/refresh', { body: { refresh_token } });
-  forward(res, upstream);
+  const refreshToken = req.cookies?.[REFRESH_COOKIE];
+  if (!refreshToken) {
+    // Sin cookie no hay nada que renovar: mismo code que usa el frontend
+    // para decidir si vale la pena reintentar.
+    return res.status(401).json({ error: 'no hay sesión que renovar', code: 'invalid_token' });
+  }
+  const upstream = await callAuthApi('/auth/refresh', { body: { refresh_token: refreshToken } });
+  if (upstream.status !== 200) clearRefreshCookie(res);
+  forwardSession(res, upstream);
 }));
 
 // POST /api/auth/logout  ->  POST /auth/logout
+// Idem: el refresh_token a revocar sale de la cookie, no del cuerpo. Sin
+// cookie no hay nada que revocar en la auth-api, pero igual se limpia la
+// cookie del navegador (por si quedó una vencida o inválida).
 router.post('/logout', asyncHandler(async (req, res) => {
-  const { refresh_token } = req.body;
-  const upstream = await callAuthApi('/auth/logout', { body: { refresh_token } });
-  forward(res, upstream);
+  const refreshToken = req.cookies?.[REFRESH_COOKIE];
+  if (refreshToken) {
+    await callAuthApi('/auth/logout', { body: { refresh_token: refreshToken } }).catch(() => {});
+  }
+  clearRefreshCookie(res);
+  res.status(204).end();
 }));
 
 // --- Recuperación de contraseña ---------------------------------------------
