@@ -6,7 +6,8 @@ autenticación ni accede a su base de datos. Incluye el flujo real de
 registro, login y segundo factor (código por correo, app autenticadora o
 aprobación por notificación push desde `auth-2fa-app`), y un panel para un
 **superadmin**: usuarios, roles, bloqueos, historial de inicios de sesión,
-registro de actividad y un resumen del sistema.
+registro de actividad y un resumen del sistema. El mismo panel está disponible
+en el celular desde `auth-2fa-app`.
 
 ## Estructura
 
@@ -244,6 +245,28 @@ enlazados a la cuenta de la auth-api por su id (`sub` del JWT).
 
 \* Excepto activar o desactivar la app autenticadora desde el perfil
 (`/api/auth/totp/*` sin `login_token`), que requiere sesión.
+
+### Cliente móvil (`auth-2fa-app`)
+
+La app Flutter habla solo con este backend, nunca directo con la auth-api, así
+que no lleva ninguna API key. Dos diferencias con la web:
+
+- **`refresh_token` en el JSON.** Con el header `X-Client-Platform: mobile`, las
+  respuestas de login, `verify-otp`, `totp/confirm`, `devices/login` y `refresh`
+  traen el `refresh_token` en el cuerpo en vez de una cookie `httpOnly` (una app
+  nativa no tiene cookies; lo guarda en Android Keystore). `POST
+  /api/auth/refresh` y `/logout` lo leen del cuerpo. Sin el header todo
+  funciona como antes.
+- **Rutas solo móviles** (dispositivos de confianza, PIN y aprobación por push):
+
+| Método | Endpoint | Quién | Para qué |
+|---|---|---|---|
+| POST | `/api/auth/devices/login` | público | Entrar con PIN. Pasa por el mismo control que un login normal: una cuenta bloqueada no recibe tokens y el intento queda en el historial (con el método de la cuenta: el historial solo distingue `otp` y `totp`) |
+| POST | `/api/auth/devices/register` | con sesión | Marcar el dispositivo como de confianza (PIN) |
+| GET | `/api/auth/devices` | con sesión | Dispositivos de confianza de la cuenta |
+| DELETE | `/api/auth/devices/:id` | con sesión | Revocar un dispositivo |
+| POST / DELETE | `/api/auth/devices/:id/push` | con sesión | Activar / desactivar la aprobación por push en ese dispositivo |
+| POST | `/api/auth/login/push-answer` | con sesión | Responder desde el celular a un login pendiente de otro dispositivo |
 
 ## Requisitos previos
 
