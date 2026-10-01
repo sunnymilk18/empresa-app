@@ -12,6 +12,11 @@ const meRoutes = require('./routes/me');
 
 const app = express();
 
+// Detrás de un proxy (Traefik en Dokploy) la IP real del cliente viene en
+// X-Forwarded-For; sin esto req.ip sería siempre la del proxy y el historial
+// de inicios de sesión guardaría esa. Un solo salto de confianza.
+app.set('trust proxy', 1);
+
 // credentials: true porque el refresh_token viaja en una cookie httpOnly
 // (ver routes/auth.js) — el navegador solo la manda entre orígenes si el
 // backend responde con Access-Control-Allow-Credentials, y solo hacia un
