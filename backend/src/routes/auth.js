@@ -122,7 +122,10 @@ async function logLoginEvent(req, localUser, method, result) {
 // está bloqueada en empresa-app, revoca en la auth-api la sesión recién
 // creada y no entrega los tokens. Devuelve el usuario local (o undefined si
 // el login no se completó).
-async function finishLogin(req, res, upstream) {
+// `blockedExtra` se suma a la respuesta 403 de una cuenta bloqueada: el login
+// con PIN rota el device_token en la auth-api, y si el celular no recibe el
+// nuevo, tras desbloquear la cuenta su PIN dejaría de funcionar.
+async function finishLogin(req, res, upstream, blockedExtra = {}) {
   const synced = await syncLocalUser(req, upstream);
   const localUser = synced?.localUser;
   if (localUser) {
@@ -133,7 +136,7 @@ async function finishLogin(req, res, upstream) {
       body: { refresh_token: upstream.data.refresh_token },
     }).catch(() => {});
     clearRefreshCookie(res);
-    res.status(403).json(BLOCKED_RESPONSE);
+    res.status(403).json({ ...BLOCKED_RESPONSE, ...blockedExtra });
   } else {
     forwardSession(req, res, upstream);
   }
@@ -384,7 +387,8 @@ router.post('/devices/login', asyncHandler(async (req, res) => {
   const upstream = await callAuthApi('/auth/devices/login', {
     body: { device_id, device_token, pin },
   });
-  await finishLogin(req, res, upstream);
+  const rotated = isMobile(req) ? { device_token: upstream.data?.device_token } : {};
+  await finishLogin(req, res, upstream, rotated);
 }));
 
 proxyWithSession('post', '/devices/register', () => '/auth/devices/register');

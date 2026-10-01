@@ -1,4 +1,5 @@
 const db = require('../db');
+const config = require('../config');
 
 // Acciones registradas (el frontend las traduce a texto legible):
 //  - de un superadmin sobre otra cuenta: role_changed, user_blocked,
@@ -93,9 +94,15 @@ async function listAuditLog({ before = null, limit = 50, actor, target, action, 
     where.push(`(${personConditions('target_email', 'target_auth_user_id', target, text, param).join(' OR ')})`);
   }
   if (action) where.push(`action = ${param(action)}`);
-  if (from) where.push(`created_at >= ${param(from)}::date`);
+  // Las fechas son días en la zona horaria de la app (APP_TIMEZONE), no en la
+  // de la base (UTC): un día "2026-10-01" empieza a medianoche de Santiago.
+  if (from) where.push(`created_at >= (${param(from)}::date)::timestamp AT TIME ZONE ${param(config.appTimezone)}`);
   // < (to + 1 día) en vez de <= to, para incluir todas las horas del día "hasta".
-  if (to) where.push(`created_at < (${param(to)}::date + INTERVAL '1 day')`);
+  if (to) {
+    where.push(
+      `created_at < ((${param(to)}::date + INTERVAL '1 day')::timestamp AT TIME ZONE ${param(config.appTimezone)})`
+    );
+  }
 
   const sql = `
     SELECT * FROM audit_log

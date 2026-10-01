@@ -23,6 +23,20 @@ function retentionDays(name, fallback) {
   return Number(raw.trim());
 }
 
+// Zona horaria en la que se interpretan los filtros por fecha del registro de
+// actividad ('YYYY-MM-DD'). Un valor inválido detiene el arranque.
+function timezone(name, fallback) {
+  const value = (process.env[name] || fallback).trim();
+  try {
+    new Intl.DateTimeFormat('es-CL', { timeZone: value });
+  } catch {
+    // eslint-disable-next-line no-console
+    console.error(`${name} no es una zona horaria válida (p. ej. America/Santiago). Valor recibido: "${value}"`);
+    process.exit(1);
+  }
+  return value;
+}
+
 const config = {
   port: process.env.PORT || 4000,
   corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
@@ -39,6 +53,7 @@ const config = {
   // Secure por defecto: el navegador no la manda salvo por HTTPS. Ponla en
   // "false" SOLO para desarrollo local por HTTP (nunca en producción).
   cookieSecure: process.env.COOKIE_SECURE !== 'false',
+  appTimezone: timezone('APP_TIMEZONE', 'America/Santiago'),
   // Limpieza automática de registros antiguos (ver lib/retention.js).
   loginHistoryRetentionDays: retentionDays('LOGIN_HISTORY_RETENTION_DAYS', 365),
   auditLogRetentionDays: retentionDays('AUDIT_LOG_RETENTION_DAYS', 1095),
