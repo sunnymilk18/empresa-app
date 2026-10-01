@@ -49,9 +49,16 @@ function clearRefreshCookie(res) {
 // Como forward(), pero para respuestas que pueden traer un refresh_token: lo
 // saca del cuerpo y lo deja en la cookie httpOnly en vez de mandarlo al
 // navegador como JSON.
-function forwardSession(res, upstream) {
+// Excepción: el cliente móvil (header X-Client-Platform: mobile) no tiene
+// cookies; recibe el refresh_token en el JSON y lo guarda en su almacenamiento
+// seguro.
+function isMobile(req) {
+  return req.get('x-client-platform') === 'mobile';
+}
+
+function forwardSession(req, res, upstream) {
   const data = { ...(upstream.data ?? {}) };
-  if (data.refresh_token) {
+  if (!isMobile(req) && data.refresh_token) {
     setRefreshCookie(res, data.refresh_token);
     delete data.refresh_token;
   }
@@ -128,7 +135,7 @@ async function finishLogin(req, res, upstream) {
     clearRefreshCookie(res);
     res.status(403).json(BLOCKED_RESPONSE);
   } else {
-    forwardSession(res, upstream);
+    forwardSession(req, res, upstream);
   }
   return localUser;
 }
@@ -220,7 +227,7 @@ router.post('/login/request-email-code', asyncHandler(async (req, res) => {
 // "Seguridad"). La auth-api rota el token en cada renovación; el nuevo
 // también se guarda en la cookie, nunca en la respuesta JSON.
 router.post('/refresh', asyncHandler(async (req, res) => {
-  const refreshToken = req.cookies?.[REFRESH_COOKIE];
+  const refreshToken = isMobile(req) ? req.body?.refresh_token : req.cookies?.[REFRESH_COOKIE];
   if (!refreshToken) {
     // Sin cookie no hay nada que renovar: mismo code que usa el frontend
     // para decidir si vale la pena reintentar.
@@ -228,7 +235,7 @@ router.post('/refresh', asyncHandler(async (req, res) => {
   }
   const upstream = await callAuthApi('/auth/refresh', { body: { refresh_token: refreshToken } });
   if (upstream.status !== 200) clearRefreshCookie(res);
-  forwardSession(res, upstream);
+  forwardSession(req, res, upstream);
 }));
 
 // POST /api/auth/logout  ->  POST /auth/logout
@@ -236,7 +243,7 @@ router.post('/refresh', asyncHandler(async (req, res) => {
 // cookie no hay nada que revocar en la auth-api, pero igual se limpia la
 // cookie del navegador (por si quedó una vencida o inválida).
 router.post('/logout', asyncHandler(async (req, res) => {
-  const refreshToken = req.cookies?.[REFRESH_COOKIE];
+  const refreshToken = isMobile(req) ? req.body?.refresh_token : req.cookies?.[REFRESH_COOKIE];
   if (refreshToken) {
     await callAuthApi('/auth/logout', { body: { refresh_token: refreshToken } }).catch(() => {});
   }
