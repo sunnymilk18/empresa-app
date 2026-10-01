@@ -359,4 +359,39 @@ router.post('/totp/disable', requireAuth, asyncHandler(async (req, res) => {
   forward(res, upstream);
 }));
 
+// --- Dispositivos de confianza, PIN y push (app móvil) -----------------------
+// Solo los usa la app móvil; la web no tiene estas pantallas. Todas, salvo el
+// login con PIN, exigen sesión (requireAuth, que también frena a bloqueados).
+
+// Reenvía a la auth-api una llamada autenticada con el access token de la sesión.
+function proxyWithSession(method, path, upstreamPath) {
+  router[method](path, requireAuth, asyncHandler(async (req, res) => {
+    const upstream = await callAuthApi(upstreamPath(req), {
+      method: method.toUpperCase(),
+      body: ['post', 'put'].includes(method) ? req.body : undefined,
+      headers: { Authorization: `Bearer ${req.accessToken}` },
+    });
+    forward(res, upstream);
+  }));
+}
+
+// POST /api/auth/devices/login  ->  POST /auth/devices/login
+// Entra con PIN, sin contraseña ni código. Es un login más: pasa por
+// finishLogin para frenar cuentas bloqueadas y quedar en el historial. El
+// device_token rotado viaja en el JSON junto a los tokens.
+router.post('/devices/login', asyncHandler(async (req, res) => {
+  const { device_id, device_token, pin } = req.body;
+  const upstream = await callAuthApi('/auth/devices/login', {
+    body: { device_id, device_token, pin },
+  });
+  await finishLogin(req, res, upstream);
+}));
+
+proxyWithSession('post', '/devices/register', () => '/auth/devices/register');
+proxyWithSession('get', '/devices', () => '/auth/devices');
+proxyWithSession('delete', '/devices/:id', (req) => `/auth/devices/${encodeURIComponent(req.params.id)}`);
+proxyWithSession('post', '/devices/:id/push', (req) => `/auth/devices/${encodeURIComponent(req.params.id)}/push`);
+proxyWithSession('delete', '/devices/:id/push', (req) => `/auth/devices/${encodeURIComponent(req.params.id)}/push`);
+proxyWithSession('post', '/login/push-answer', () => '/auth/login/push-answer');
+
 module.exports = router;
