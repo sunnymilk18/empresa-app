@@ -53,6 +53,10 @@ const config = {
   // Secure por defecto: el navegador no la manda salvo por HTTPS. Ponla en
   // "false" SOLO para desarrollo local por HTTP (nunca en producción).
   cookieSecure: process.env.COOKIE_SECURE !== 'false',
+  // Pide el PIN de la cuenta en las acciones destructivas del superadmin (ver
+  // lib/adminPin.js). Apagado por defecto: se enciende cuando las apps ya lo
+  // envían.
+  adminPinEnforced: process.env.ADMIN_PIN_ENFORCED === 'true',
   appTimezone: timezone('APP_TIMEZONE', 'America/Santiago'),
   // Limpieza automática de registros antiguos (ver lib/retention.js).
   loginHistoryRetentionDays: retentionDays('LOGIN_HISTORY_RETENTION_DAYS', 365),

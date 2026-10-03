@@ -11,6 +11,7 @@ const {
 } = require('../lib/localUsers');
 const { listAuditLog, AUDIT_ACTIONS } = require('../lib/audit');
 const { listLoginHistory } = require('../lib/loginHistory');
+const { requireAdminPin } = require('../lib/adminPin');
 const { getDashboardStats } = require('../lib/stats');
 const { authApiFetch, systemAdminListUsers, SYSTEM_ADMIN_MESSAGES } = require('../lib/authApi');
 const asyncHandler = require('../lib/asyncHandler');
@@ -69,7 +70,11 @@ router.get('/me', requireAuth, async (req, res) => {
     role: req.localUser.role,
     // Qué funciones opcionales tiene este backend, para que el panel muestre
     // u oculte los botones que dependen de ellas.
-    features: { authApiModeration: Boolean(config.authApiSystemAdminToken) },
+    features: {
+      authApiModeration: Boolean(config.authApiSystemAdminToken),
+      // Si es true, las acciones destructivas piden el PIN (campo `pin`).
+      adminPin: config.adminPinEnforced,
+    },
   });
 });
 
@@ -99,7 +104,7 @@ router.get('/local-users', requireAuth, requireRole('superadmin'), asyncHandler(
 
 // PUT /api/local-users/:authUserId/role  (solo superadmin) - cambiar rol
 // Requiere un motivo (queda en Actividad, ver requiredReason).
-router.put('/local-users/:authUserId/role', requireAuth, requireRole('superadmin'), asyncHandler(async (req, res) => {
+router.put('/local-users/:authUserId/role', requireAuth, requireRole('superadmin'), requireAdminPin, asyncHandler(async (req, res) => {
   const { role } = req.body;
   if (!ROLES.includes(role)) {
     return res.status(400).json({ error: `role debe ser uno de: ${ROLES.join(', ')}` });
@@ -121,7 +126,7 @@ router.put('/local-users/:authUserId/role', requireAuth, requireRole('superadmin
 // Requiere un motivo (queda en Actividad, ver requiredReason). Un reintento
 // de lo pendiente en la auth-api pasa por aquí también: el frontend manda un
 // motivo automático en ese caso, no le vuelve a preguntar a la persona.
-router.put('/local-users/:authUserId/blocked', requireAuth, requireRole('superadmin'), asyncHandler(async (req, res) => {
+router.put('/local-users/:authUserId/blocked', requireAuth, requireRole('superadmin'), requireAdminPin, asyncHandler(async (req, res) => {
   const { blocked } = req.body;
   if (typeof blocked !== 'boolean') {
     return res.status(400).json({ error: 'blocked debe ser true o false' });
@@ -152,11 +157,14 @@ const IDENTITY_ACTION_STATUS = { not_found: 404, unauthorized: 502, unavailable:
 
 // POST /api/local-users/:authUserId/revoke-sessions  (solo superadmin)
 // POST /api/local-users/:authUserId/disable-totp     (solo superadmin)
-// Cierran todas las sesiones de la persona, o le desactivan la app
-// autenticadora (p. ej. perdió el celular), en la auth-api. No se permiten
-// sobre la propia cuenta: para eso están "Salir" y la tarjeta Seguridad.
-for (const action of ['revoke-sessions', 'disable-totp']) {
-  router.post(`/local-users/:authUserId/${action}`, requireAuth, requireRole('superadmin'), asyncHandler(async (req, res) => {
+// POST /api/local-users/:authUserId/reset-pin        (solo superadmin)
+// Cierran todas las sesiones de la persona, le desactivan la app
+// autenticadora (p. ej. perdió el celular) o le borran el PIN (olvidó el
+// suyo: la auth-api también revoca sus dispositivos y sesiones, y crea uno
+// nuevo en su próximo ingreso). No se permiten sobre la propia cuenta: para
+// eso están "Salir", la tarjeta Seguridad y PUT /api/auth/pin.
+for (const action of ['revoke-sessions', 'disable-totp', 'reset-pin']) {
+  router.post(`/local-users/:authUserId/${action}`, requireAuth, requireRole('superadmin'), requireAdminPin, asyncHandler(async (req, res) => {
     if (req.params.authUserId === req.authUser.id) {
       return res.status(400).json({ error: 'Esta acción no se puede usar sobre tu propia cuenta' });
     }

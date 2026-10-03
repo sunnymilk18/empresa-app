@@ -238,6 +238,8 @@ enlazados a la cuenta de la auth-api por su id (`sub` del JWT).
 | PUT | `/api/local-users/:authUserId/blocked` | superadmin | Bloquear / desbloquear (aquí y en la auth-api; repetirlo reintenta lo pendiente) |
 | POST | `/api/local-users/:authUserId/revoke-sessions` | superadmin | Cerrar todas sus sesiones (requiere `AUTH_API_SYSTEM_ADMIN_TOKEN`) |
 | POST | `/api/local-users/:authUserId/disable-totp` | superadmin | Desactivar su app autenticadora (requiere `AUTH_API_SYSTEM_ADMIN_TOKEN`) |
+| POST | `/api/local-users/:authUserId/reset-pin` | superadmin | Borrar el PIN de otra persona (la auth-api también revoca sus dispositivos y sesiones; crea uno nuevo al volver a entrar). Requiere `AUTH_API_SYSTEM_ADMIN_TOKEN` |
+| PUT | `/api/auth/pin` | con sesión | Crear (`pin`) o cambiar (`pin` + `current_pin`) el PIN de la propia cuenta |
 | GET | `/api/local-users/:authUserId/logins?before=` | superadmin | Datos + historial de inicios de sesión (de a 50) |
 | GET | `/api/audit-log?before=` | superadmin | Registro de actividad (de a 50) |
 | GET | `/api/auth-users?page=&page_size=&q=` | superadmin | Todas las cuentas registradas en la auth-api, incluidas las que nunca completaron su primer login. `q` busca por email, usuario o rut (requiere `AUTH_API_SYSTEM_ADMIN_TOKEN`) |
@@ -267,6 +269,34 @@ que no lleva ninguna API key. Dos diferencias con la web:
 | DELETE | `/api/auth/devices/:id` | con sesión | Revocar un dispositivo |
 | POST / DELETE | `/api/auth/devices/:id/push` | con sesión | Activar / desactivar la aprobación por push en ese dispositivo |
 | POST | `/api/auth/login/push-answer` | con sesión | Responder desde el celular a un login pendiente de otro dispositivo |
+
+### PIN de la cuenta y acciones destructivas
+
+Cada cuenta tiene **un solo PIN de 6 dígitos**, guardado y verificado por la
+auth-api (con bloqueo por intentos fallidos). Desbloquea los dispositivos de
+confianza de la app móvil y confirma las acciones destructivas del superadmin:
+cambiar un rol, bloquear/desbloquear, cerrar sesiones, desactivar la app
+autenticadora y resetear el PIN de otra persona.
+
+Con `ADMIN_PIN_ENFORCED=true`, esas rutas exigen el campo `pin` en el cuerpo y
+lo verifican en el servidor (`POST /auth/pin/verify`, con la sesión de quien
+actúa), así que un token robado no basta para saltarse el control. Errores, todos
+con `code`:
+
+| Status | `code` | Cuándo |
+|---|---|---|
+| 403 | `pin_required` | no mandó el PIN |
+| 400 | `pin_invalid_format` | no son 6 dígitos (no gasta un intento) |
+| 403 | `pin_invalid` | incorrecto; trae `attempts_left` |
+| 423 | `pin_locked` | bloqueado; trae `retry_after_seconds` |
+| 409 | `pin_not_set` | la cuenta aún no tiene PIN: debe crearlo con `PUT /api/auth/pin` |
+
+`GET /api/me` trae `features.adminPin` (si se exige) y `pin_set`. Está apagado
+por defecto para poder desplegar el backend antes que las apps y encenderlo
+cuando ya envíen el PIN. Crear y cambiar el PIN, y el reset por otro superadmin,
+quedan en Actividad (`pin_set`, `pin_changed`, `pin_reset`).
+
+Los tests del middleware corren con `npm test` en `backend/`.
 
 ## Requisitos previos
 

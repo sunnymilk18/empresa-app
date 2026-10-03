@@ -175,6 +175,7 @@ async function setBlocked(authUserId, blocked, actor, reason) {
 const IDENTITY_ACTION_AUDIT = {
   'revoke-sessions': 'sessions_revoked',
   'disable-totp': 'totp_disabled_by_admin',
+  'reset-pin': 'pin_reset',
 };
 async function runIdentityAction(authUserId, action, actor) {
   return db.transaction(async (query) => {

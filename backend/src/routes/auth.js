@@ -362,6 +362,27 @@ router.post('/totp/disable', requireAuth, asyncHandler(async (req, res) => {
   forward(res, upstream);
 }));
 
+// --- PIN de la cuenta ---------------------------------------------------------
+// Un solo PIN de 6 dígitos por cuenta, guardado en la auth-api: desbloquea los
+// dispositivos de confianza de la app móvil y confirma las acciones
+// destructivas del superadmin (ver lib/adminPin.js). Aquí solo se crea o
+// cambia; el bloqueo por intentos lo lleva la auth-api.
+
+// PUT /api/auth/pin  ->  PUT /auth/pin   (con sesión)
+// Crea el PIN (solo `pin`) o lo cambia (`pin` + `current_pin`).
+router.put('/pin', requireAuth, asyncHandler(async (req, res) => {
+  const { pin, current_pin: currentPin } = req.body;
+  const upstream = await callAuthApi('/auth/pin', {
+    method: 'PUT',
+    body: { pin, current_pin: currentPin },
+    headers: { Authorization: `Bearer ${req.accessToken}` },
+  });
+  if (upstream.status === 204) {
+    await logOwnSecurityAction(req, req.localUser, currentPin ? 'pin_changed' : 'pin_set');
+  }
+  forward(res, upstream);
+}));
+
 // --- Dispositivos de confianza, PIN y push (app móvil) -----------------------
 // Solo los usa la app móvil; la web no tiene estas pantallas. Todas, salvo el
 // login con PIN, exigen sesión (requireAuth, que también frena a bloqueados).

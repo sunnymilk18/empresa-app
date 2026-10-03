@@ -6,7 +6,9 @@ const config = require('../config');
 //    user_unblocked (details.auth_api: cómo terminó en la auth-api),
 //    auth_api_synced (reintento exitoso de un ban/unban pendiente),
 //    sessions_revoked, totp_disabled_by_admin
-//  - de una persona sobre su propia cuenta: totp_enabled, totp_disabled
+//    pin_reset (resetear el PIN de otra persona)
+//  - de una persona sobre su propia cuenta: totp_enabled, totp_disabled,
+//    pin_set (creó su PIN), pin_changed (lo cambió)
 // Inserta una fila de auditoría usando la conexión de la transacción en curso,
 // para que la acción y su registro se guarden juntos o no se guarde ninguno.
 async function logAction(query, actor, action, target, details = {}) {
@@ -31,6 +33,9 @@ const AUDIT_ACTIONS = [
   'totp_disabled_by_admin',
   'totp_enabled',
   'totp_disabled',
+  'pin_reset',
+  'pin_set',
+  'pin_changed',
 ];
 
 // Escapa % _ y \ para que el texto buscado se tome literal en ILIKE (mismo
