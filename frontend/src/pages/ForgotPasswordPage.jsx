@@ -1,15 +1,22 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
+import { PasswordInput } from '../components/PasswordInput';
 import { useLeave } from '../utils/useLeave';
 
 // Flujo de 2 pasos, igual al de la auth-api:
 //   1. pedir el código (la respuesta es la misma exista o no la cuenta)
 //   2. confirmar con el código + la nueva contraseña
+// Quien ya tiene un código (por ejemplo, uno que le mandó un admin) entra directo al
+// paso 2: con el enlace del correo (?email=<correo>) o con "Ya tengo un código".
 export function ForgotPasswordPage() {
   const { leaving, leaveTo, linkProps } = useLeave();
-  const [step, setStep] = useState(1);
-  const [email, setEmail] = useState('');
+  const [searchParams] = useSearchParams();
+  const linkEmail = searchParams.get('email') || '';
+  const [step, setStep] = useState(linkEmail ? 2 : 1);
+  // true si llegó al paso 2 sin pedir el código aquí: ahí hay que confirmar el correo.
+  const [direct, setDirect] = useState(Boolean(linkEmail));
+  const [email, setEmail] = useState(linkEmail);
   const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -24,6 +31,7 @@ export function ForgotPasswordPage() {
     try {
       const res = await api.requestPasswordReset({ email });
       setMessage(res.message || 'Si el correo está registrado, se envió un código.');
+      setDirect(false);
       setStep(2);
     } catch (err) {
       setError(err.data?.error || err.message);
@@ -63,20 +71,28 @@ export function ForgotPasswordPage() {
           <button type="submit" disabled={loading}>
             {loading ? 'Enviando...' : 'Enviar código'}
           </button>
+          <button type="button" className="link-button" onClick={() => { setError(''); setDirect(true); setStep(2); }}>
+            Ya tengo un código
+          </button>
         </form>
       )}
 
       {step === 2 && (
         <form onSubmit={onConfirm} className="form">
           {message && <p className="success">{message}</p>}
+          {direct && (
+            <label>
+              Email
+              <input type="email" required autoFocus={!email} value={email} onChange={(e) => setEmail(e.target.value)} />
+            </label>
+          )}
           <label>
             Código
-            <input required value={code} onChange={(e) => setCode(e.target.value)} />
+            <input required autoFocus={!direct || Boolean(email)} inputMode="numeric" value={code} onChange={(e) => setCode(e.target.value)} />
           </label>
           <label>
             Nueva contraseña
-            <input
-              type="password"
+            <PasswordInput
               required
               minLength={8}
               value={newPassword}
@@ -85,8 +101,7 @@ export function ForgotPasswordPage() {
           </label>
           <label>
             Confirmar nueva contraseña
-            <input
-              type="password"
+            <PasswordInput
               required
               minLength={8}
               value={confirm}

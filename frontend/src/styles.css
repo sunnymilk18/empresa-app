@@ -429,6 +429,7 @@ body:has(.auth-sky) .container > .auth-card { animation: auth-card-in 0.7s var(-
 .field-box > svg { position: absolute; left: 14px; color: var(--muted); pointer-events: none; transition: color 0.25s ease; }
 .field-box:focus-within > svg { color: var(--gold); }
 .auth-card .form .field-box input { width: 100%; padding-left: 44px; padding-right: 44px; }
+.auth-card .form .field-box--plain input { padding-left: 16px; }
 .auth-card .form label:focus-within { color: var(--gold); }
 .auth-card .form input:focus { border-color: var(--gold); box-shadow: 0 0 0 4px rgba(252, 180, 12, 0.14); }
 .field-eye {

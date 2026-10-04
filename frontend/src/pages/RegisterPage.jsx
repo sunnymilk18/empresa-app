@@ -1,12 +1,15 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
+import { PasswordInput } from '../components/PasswordInput';
 import { useLeave } from '../utils/useLeave';
 
 export function RegisterPage() {
   const { leaving, leaveTo, linkProps } = useLeave();
   const [form, setForm] = useState({ email: '', username: '', rut: '', password: '' });
   const [confirm, setConfirm] = useState('');
+  const [confirmEmail, setConfirmEmail] = useState('');
+  const emailsDiffer = (a, b) => a.trim().toLowerCase() !== b.trim().toLowerCase();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -17,6 +20,10 @@ export function RegisterPage() {
   async function onSubmit(e) {
     e.preventDefault();
     setError('');
+    if (emailsDiffer(form.email, confirmEmail)) {
+      setError('Los correos no coinciden.');
+      return;
+    }
     if (form.password !== confirm) {
       setError('Las contraseñas no coinciden.');
       return;
@@ -38,10 +45,23 @@ export function RegisterPage() {
     <div className={`auth-card auth-card--wide${leaving ? ' is-leaving' : ''}`}>
       <h1>Crear cuenta</h1>
       <form onSubmit={onSubmit} className="form">
-        <label>
-          Email
-          <input type="email" required value={form.email} onChange={update('email')} />
-        </label>
+        <div className="form-row">
+          <label>
+            Email
+            <input type="email" required value={form.email} onChange={update('email')} />
+          </label>
+          <label>
+            Confirmar email
+            <input
+              type="email"
+              required
+              value={confirmEmail}
+              onChange={(e) => setConfirmEmail(e.target.value)}
+              onPaste={(e) => e.preventDefault()}
+            />
+          </label>
+        </div>
+        {confirmEmail && emailsDiffer(form.email, confirmEmail) && <p className="error error--live">Los correos no coinciden.</p>}
         <div className="form-row">
           <label>
             Usuario
@@ -61,8 +81,7 @@ export function RegisterPage() {
         <div className="form-row">
           <label>
             Contraseña
-            <input
-              type="password"
+            <PasswordInput
               required
               minLength={8}
               value={form.password}
@@ -71,8 +90,7 @@ export function RegisterPage() {
           </label>
           <label>
             Confirmar contraseña
-            <input
-              type="password"
+            <PasswordInput
               required
               minLength={8}
               value={confirm}
@@ -81,7 +99,7 @@ export function RegisterPage() {
           </label>
         </div>
         {confirm && form.password !== confirm && <p className="error error--live">Las contraseñas no coinciden.</p>}
-        {error && error !== 'Las contraseñas no coinciden.' && <p className="error">{error}</p>}
+        {error && error !== 'Las contraseñas no coinciden.' && error !== 'Los correos no coinciden.' && <p className="error">{error}</p>}
         <button type="submit" disabled={loading}>
           {loading ? 'Creando...' : 'Registrarme'}
         </button>
