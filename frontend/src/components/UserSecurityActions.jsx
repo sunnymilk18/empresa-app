@@ -77,6 +77,15 @@ export function UserSecurityActions({ user, onUserChange }) {
       call: ({ reason, pin }) => api.disableUserTotp(id, reason, pin, accessToken),
       success: 'App autenticadora desactivada. Ahora recibirá el código por correo.',
     },
+    changeEmail: {
+      title: 'Corregir su correo',
+      description: `Se enviará un código al correo nuevo. El correo de ${user.email} solo cambiará cuando la propia persona lo confirme con ese código; tú no lo verás. Al confirmarse se cierran todas sus sesiones.`,
+      confirmLabel: 'Enviar código',
+      askReason: true,
+      askEmail: true,
+      call: ({ email, reason, pin }) => api.changeUserEmail(id, email, reason, pin, accessToken),
+      success: 'Código enviado al correo nuevo. La persona debe confirmarlo en "Confirmar correo nuevo", desde el inicio de sesión.',
+    },
     resetPassword: {
       title: 'Restablecer su contraseña',
       description: `¿Enviarle a ${user.email} el código para restablecer su contraseña? Le llegará a su correo y ella elegirá la nueva; tú no la verás.`,
@@ -200,6 +209,19 @@ export function UserSecurityActions({ user, onUserChange }) {
             </button>
           </div>
 
+          <div
+            className="security-action security-action--wide"
+            title="Para quien se equivocó al escribir su correo: le llega un código al correo nuevo y ella lo confirma."
+          >
+            <div>
+              <strong>Corregir su correo</strong>
+              <p className="muted">Para quien se equivocó al escribir su correo: le llega un código al correo nuevo y ella lo confirma.</p>
+            </div>
+            <button type="button" className="table-action" onClick={() => open('changeEmail')}>
+              Corregir correo
+            </button>
+          </div>
+
           {pinEnforced && (
             <div className="security-action" title="Para quien lo olvidó: crea uno nuevo al volver a entrar.">
               <div>
@@ -231,6 +253,7 @@ export function UserSecurityActions({ user, onUserChange }) {
           confirmLabel={actions[modal].confirmLabel}
           danger={actions[modal].danger}
           askReason={Boolean(actions[modal].askReason)}
+          askEmail={Boolean(actions[modal].askEmail)}
           askPin={pinEnforced}
           onConfirm={(values) => confirm(modal, values)}
           onCancel={() => setModal(null)}

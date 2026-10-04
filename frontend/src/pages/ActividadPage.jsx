@@ -19,6 +19,7 @@ const ACTION_LABELS = {
   totp_disabled: 'App autenticadora desactivada (por la propia cuenta)',
   pin_reset: 'PIN reseteado (por un admin)',
   password_reset_sent: 'Código para restablecer contraseña enviado (por un admin)',
+  email_change_requested: 'Corrección de correo iniciada (por un admin)',
   pin_set: 'PIN creado',
   pin_changed: 'PIN cambiado',
 };
@@ -129,6 +130,8 @@ function describe(entry, onShowReason) {
       return <>desactivó la app autenticadora de <strong>{target}</strong>{reasonNote(entry.details.reason, onShowReason)}</>;
     case 'pin_reset':
       return <>reseteó el PIN de <strong>{target}</strong>{reasonNote(entry.details.reason, onShowReason)}</>;
+    case 'email_change_requested':
+      return <>inició la corrección del correo de <strong>{target}</strong> a <strong>{entry.details.new_email}</strong>{reasonNote(entry.details.reason, onShowReason)}</>;
     case 'password_reset_sent':
       return <>le envió a <strong>{target}</strong> el código para restablecer su contraseña{reasonNote(entry.details.reason, onShowReason)}</>;
     // Acciones de la persona sobre su propia cuenta.

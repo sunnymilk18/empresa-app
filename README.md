@@ -121,6 +121,7 @@ sincronizadas. Solo hay que volver a iniciar sesión cuando vence el
 | POST | `/auth/logout` | Revocar el `refresh_token` |
 | POST | `/auth/password-reset/request` | Pedir código para restablecer contraseña |
 | POST | `/auth/password-reset/confirm` | Confirmar código + nueva contraseña |
+| POST | `/auth/change-email/confirm` | La propia persona confirma el correo nuevo (corrección iniciada por un admin) con el código que le llegó ahí |
 | GET  | `/.well-known/jwks.json` | Clave pública para verificar el JWT localmente |
 | GET  | `/me` | Perfil (username, rut, método de segundo factor) con el `access_token` |
 | GET  | `/system-admin/users?page=&page_size=&q=` | Listar todas las cuentas registradas de este sistema, incluidas las que nunca completaron su primer login. `q` busca por email, usuario o rut |
@@ -240,6 +241,8 @@ enlazados a la cuenta de la auth-api por su id (`sub` del JWT).
 | POST | `/api/local-users/:authUserId/disable-totp` | superadmin | Desactivar su app autenticadora (requiere `AUTH_API_SYSTEM_ADMIN_TOKEN`) Requiere un motivo (`reason`, queda en Actividad) |
 | POST | `/api/local-users/:authUserId/reset-pin` | superadmin | Borrar el PIN de otra persona (la auth-api también revoca sus dispositivos y sesiones; crea uno nuevo al volver a entrar). Requiere `AUTH_API_SYSTEM_ADMIN_TOKEN` Requiere un motivo (`reason`, queda en Actividad) |
 | POST | `/api/local-users/:authUserId/send-password-reset` | superadmin | Enviarle a la persona el código para restablecer su contraseña (mismo flujo de "¿Olvidaste tu contraseña?"; ella elige la nueva, quien lo pide no la ve). Pide el PIN de administración y queda en Actividad Requiere un motivo (`reason`, queda en Actividad) |
+| POST | `/api/local-users/:authUserId/change-email` | superadmin | Iniciar la corrección del correo de una cuenta (`new_email`): la auth-api manda un código al correo nuevo y la propia persona lo confirma en `/confirmar-correo` (el admin no lo ve). Requiere `reason`, el PIN de administración y `AUTH_API_SYSTEM_ADMIN_TOKEN`; queda en Actividad. El correo local se actualiza cuando la persona vuelve a iniciar sesión |
+| POST | `/api/auth/change-email/confirm` | pública | Proxy de `/auth/change-email/confirm`: la persona confirma el correo nuevo con su código |
 | PUT | `/api/auth/pin` | con sesión | Crear (`pin`) o cambiar (`pin` + `current_pin`) el PIN de la propia cuenta |
 | GET | `/api/local-users/:authUserId/logins?before=` | superadmin | Datos + historial de inicios de sesión (de a 50) |
 | GET | `/api/audit-log?before=` | superadmin | Registro de actividad (de a 50) |

@@ -10,6 +10,7 @@ import { StandaloneScene } from './components/StandaloneScene';
 import { StarField } from './components/StarField';
 import { SunsetOverlay } from './components/SunsetOverlay';
 import { RegisterPage } from './pages/RegisterPage';
+import { ConfirmarCorreoPage } from './pages/ConfirmarCorreoPage';
 import { VerifyEmailPage } from './pages/VerifyEmailPage';
 import { LoginPage } from './pages/LoginPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
@@ -41,6 +42,7 @@ export default function App() {
               <Route path="/verify-email" element={<VerifyEmailPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/confirmar-correo" element={<ConfirmarCorreoPage />} />
               <Route path="/verify-otp" element={<VerifyOtpPage />} />
               <Route path="/aprobar-celular" element={<PushLoginPage />} />
               <Route path="/elegir-metodo" element={<ElegirMetodoPage />} />

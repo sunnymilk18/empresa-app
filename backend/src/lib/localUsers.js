@@ -1,6 +1,6 @@
 const db = require('../db');
 const { logAction } = require('./audit');
-const { systemAdminAction, callAuthApi } = require('./authApi');
+const { systemAdminAction, systemAdminChangeEmail, callAuthApi } = require('./authApi');
 
 const ROLES = ['superadmin', 'admin', 'user'];
 
@@ -216,6 +216,27 @@ async function sendPasswordReset(authUserId, actor, reason) {
   });
 }
 
+// Inicia la corrección del correo de una cuenta (p. ej. se equivocó al escribirlo
+// y nunca pudo verificarlo). No cambia nada todavía: la auth-api le manda un
+// código al correo NUEVO y la propia persona lo confirma (el administrador no lo
+// ve). El correo local se actualiza solo cuando esa persona inicia sesión de
+// nuevo, como cualquier dato de perfil (ver recordLogin). Se registra en la
+// actividad, con el correo nuevo y el motivo, solo si la auth-api aceptó el
+// pedido. Devuelve { user, authApi } o null si el usuario no existe.
+async function requestEmailChange(authUserId, newEmail, actor, reason) {
+  return db.transaction(async (query) => {
+    await waitAdminTurn(query);
+    const { rows } = await query('SELECT * FROM local_users WHERE auth_user_id = $1', [authUserId]);
+    const user = rows[0];
+    if (!user) return null;
+    await checkAdminChange(query, actor, user, false);
+
+    const authApi = await systemAdminChangeEmail(authUserId, newEmail);
+    if (authApi === 'ok') await logAction(query, actor, 'email_change_requested', user, { new_email: newEmail, reason });
+    return { user, authApi };
+  });
+}
+
 async function getLocalUser(authUserId) {
   return findStmt.get(authUserId);
 }
@@ -295,5 +316,6 @@ module.exports = {
   setBlocked,
   runIdentityAction,
   sendPasswordReset,
+  requestEmailChange,
   listLocalUsers,
 };

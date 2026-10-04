@@ -6,12 +6,12 @@ import { PinField } from './PinField';
 const MAX_LENGTH = 500;
 
 // Diálogo para confirmar una acción de administración. Pide un motivo
-// (askReason, queda en Actividad) y/o el PIN de la cuenta (askPin, solo cuando
+// (askReason, queda en Actividad), un correo (askEmail) y/o el PIN de la cuenta (askPin, solo cuando
 // el servidor lo exige: features.adminPin). El botón de confirmar queda
 // deshabilitado hasta completar lo que se pide. Si no se pide nada, funciona
 // como un simple "¿estás seguro?".
 //
-// onConfirm({ reason, pin }) debe lanzar el error si falla: el diálogo lo
+// onConfirm({ reason, pin, email }) debe lanzar el error si falla: el diálogo lo
 // muestra y se queda abierto; si sale bien, quien lo usa lo cierra.
 export function ActionModal({
   title,
@@ -19,24 +19,27 @@ export function ActionModal({
   confirmLabel,
   danger,
   askReason = true,
+  askEmail = false,
   askPin = false,
   onConfirm,
   onCancel,
 }) {
   const [reason, setReason] = useState('');
+  const [email, setEmail] = useState('');
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [locked, lock] = usePinLock();
 
   const trimmed = reason.trim();
-  const ready = (!askReason || trimmed) && (!askPin || PIN_RE.test(pin));
+  const emailOk = !askEmail || /^\S+@\S+\.\S+$/.test(email.trim());
+  const ready = (!askReason || trimmed) && emailOk && (!askPin || PIN_RE.test(pin));
 
   async function handleConfirm() {
     setError('');
     setSaving(true);
     try {
-      await onConfirm({ reason: trimmed, pin: askPin ? pin : undefined });
+      await onConfirm({ reason: trimmed, pin: askPin ? pin : undefined, email: email.trim() });
     } catch (err) {
       const code = err.data?.code;
       setError(pinErrorMessage(err));
@@ -54,12 +57,26 @@ export function ActionModal({
         <h2 style={{ marginTop: 0 }}>{title}</h2>
         {description && <p className="muted">{description}</p>}
 
+        {askEmail && (
+          <label className="form" style={{ marginTop: 8 }}>
+            Correo nuevo
+            <input
+              type="email"
+              autoFocus
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="correo.correcto@ejemplo.cl"
+              disabled={saving}
+            />
+          </label>
+        )}
+
         {askReason && (
           <>
             <label className="form" style={{ marginTop: 8 }}>
               Motivo (obligatorio)
               <textarea
-                autoFocus
+                autoFocus={!askEmail}
                 rows={3}
                 maxLength={MAX_LENGTH}
                 value={reason}
@@ -75,7 +92,7 @@ export function ActionModal({
         )}
 
         {askPin && (
-          <PinField label="Tu PIN (6 dígitos)" value={pin} onChange={setPin} disabled={saving} autoFocus={!askReason} />
+          <PinField label="Tu PIN (6 dígitos)" value={pin} onChange={setPin} disabled={saving} autoFocus={!askReason && !askEmail} />
         )}
 
         {error && <p className="error">{error}</p>}

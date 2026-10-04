@@ -9,6 +9,7 @@ const {
   setBlocked,
   runIdentityAction,
   sendPasswordReset,
+  requestEmailChange,
 } = require('../lib/localUsers');
 const { listAuditLog, AUDIT_ACTIONS } = require('../lib/audit');
 const { listLoginHistory } = require('../lib/loginHistory');
@@ -154,7 +155,14 @@ router.put('/local-users/:authUserId/blocked', requireAuth, requireRole('superad
 }));
 
 // Códigos HTTP para una acción de la auth-api que no se pudo aplicar.
-const IDENTITY_ACTION_STATUS = { not_found: 404, unauthorized: 502, unavailable: 503, disabled: 503 };
+const IDENTITY_ACTION_STATUS = {
+  not_found: 404,
+  unauthorized: 502,
+  unavailable: 503,
+  disabled: 503,
+  invalid_email: 400,
+  email_in_use: 409,
+};
 
 // POST /api/local-users/:authUserId/revoke-sessions  (solo superadmin)
 // POST /api/local-users/:authUserId/disable-totp     (solo superadmin)
@@ -188,6 +196,33 @@ for (const action of ['revoke-sessions', 'disable-totp', 'reset-pin', 'send-pass
     res.json({ user: result.user });
   }));
 }
+
+// POST /api/local-users/:authUserId/change-email  { new_email, reason }  (solo superadmin)
+// Inicia la corrección del correo de una cuenta que se equivocó al escribirlo:
+// la auth-api le manda un código al correo NUEVO y la propia persona lo confirma
+// (POST /api/auth/change-email/confirm); el administrador nunca lo ve. Pide
+// motivo y PIN como las demás acciones, y no se permite sobre la propia cuenta.
+router.post('/local-users/:authUserId/change-email', requireAuth, requireRole('superadmin'), requireAdminPin, asyncHandler(async (req, res) => {
+  if (req.params.authUserId === req.authUser.id) {
+    return res.status(400).json({ error: 'Esta acción no se puede usar sobre tu propia cuenta' });
+  }
+  const reason = requiredReason(req.body);
+  if (!reason) {
+    return res.status(400).json({ error: `El motivo es obligatorio (máx. ${REASON_MAX_LENGTH} caracteres)` });
+  }
+  const newEmail = typeof req.body.new_email === 'string' ? req.body.new_email.trim() : '';
+  if (!newEmail || newEmail.length > 254) {
+    return res.status(400).json({ error: 'El correo nuevo es obligatorio' });
+  }
+  const result = await requestEmailChange(req.params.authUserId, newEmail, actorOf(req), reason);
+  if (!result) return res.status(404).json({ error: 'Usuario no encontrado' });
+  if (result.authApi !== 'ok') {
+    return res
+      .status(IDENTITY_ACTION_STATUS[result.authApi])
+      .json({ error: SYSTEM_ADMIN_MESSAGES[result.authApi], code: `auth_api_${result.authApi}` });
+  }
+  res.json({ user: result.user });
+}));
 
 // GET /api/auth-users?page=&page_size=&q=  (solo superadmin)
 // Todas las cuentas registradas en la auth-api para este sistema, incluidas

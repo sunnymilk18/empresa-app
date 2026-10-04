@@ -63,6 +63,10 @@ export function VerifyEmailPage() {
       <button type="button" className="link-button" onClick={onResend}>
         Reenviar código
       </button>
+      <p className="muted" style={{ marginTop: 16 }}>
+        ¿Te equivocaste al escribir tu correo? Pide a un administrador que lo corrija y luego{' '}
+        <Link to="/confirmar-correo">confirma el correo nuevo</Link>.
+      </p>
     </div>
   );
 }

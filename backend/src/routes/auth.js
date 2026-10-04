@@ -274,6 +274,16 @@ router.post('/password-reset/confirm', asyncHandler(async (req, res) => {
   forward(res, upstream);
 }));
 
+// POST /api/auth/change-email/confirm  ->  POST /auth/change-email/confirm
+// Pública (como la recuperación de contraseña): la usa la propia persona, que
+// puede estar sin poder entrar a la cuenta, con el código que le llegó al
+// correo NUEVO tras la corrección iniciada por un superadmin. 204 si se aplicó.
+router.post('/change-email/confirm', asyncHandler(async (req, res) => {
+  const { email, code } = req.body;
+  const upstream = await callAuthApi('/auth/change-email/confirm', { body: { email, code } });
+  forward(res, upstream);
+}));
+
 // POST /api/auth/resend-code  ->  POST /auth/login/resend-code
 // "No me llegó el código": reenvía uno nuevo por correo. Para una cuenta con
 // app autenticadora la auth-api responde 409 (no hay nada que reenviar).

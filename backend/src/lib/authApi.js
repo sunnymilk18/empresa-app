@@ -71,6 +71,36 @@ async function systemAdminAction(authUserId, action) {
   return 'unavailable';
 }
 
+// Inicia la corrección del correo de una cuenta (POST /system-admin/users/{id}/change-email):
+// no cambia nada todavía, la auth-api le manda un código al correo NUEVO y la propia
+// persona lo confirma con la ruta pública /auth/change-email/confirm. Nunca lanza;
+// devuelve lo mismo que systemAdminAction más:
+//   'invalid_email'  el correo nuevo no tiene un formato válido (400)
+//   'email_in_use'   ya lo usa otra cuenta de este sistema (409)
+async function systemAdminChangeEmail(authUserId, newEmail) {
+  if (!config.authApiSystemAdminToken) return 'disabled';
+  let res;
+  try {
+    res = await authApiFetch(`/system-admin/users/${encodeURIComponent(authUserId)}/change-email`, {
+      method: 'POST',
+      headers: {
+        'X-System-Admin-Token': config.authApiSystemAdminToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ new_email: newEmail }),
+    });
+  } catch {
+    return 'unavailable';
+  }
+  await res.text().catch(() => {}); // libera la conexión; el cuerpo no se usa
+  if (res.status === 204 || res.ok) return 'ok';
+  if (res.status === 400) return 'invalid_email';
+  if (res.status === 404) return 'not_found';
+  if (res.status === 401) return 'unauthorized';
+  if (res.status === 409) return 'email_in_use';
+  return 'unavailable';
+}
+
 // Lista las cuentas registradas en la auth-api para este sistema (todas,
 // incluidas las que nunca completaron su primer login y por eso no aparecen
 // en /api/local-users) — requiere la misma credencial de administración por
@@ -108,6 +138,8 @@ const SYSTEM_ADMIN_MESSAGES = {
   unauthorized:
     'La credencial de administración del servicio de autenticación es inválida o fue revocada (revisa AUTH_API_SYSTEM_ADMIN_TOKEN en el .env del backend).',
   unavailable: 'El servicio de autenticación no respondió. Intenta de nuevo en unos minutos.',
+  invalid_email: 'El correo nuevo no tiene un formato válido.',
+  email_in_use: 'Ese correo ya está en uso por otra cuenta de este sistema.',
   disabled:
     'Esta acción requiere la credencial de administración del servicio de autenticación (AUTH_API_SYSTEM_ADMIN_TOKEN), que no está configurada.',
 };
@@ -117,6 +149,7 @@ module.exports = {
   authApiFetch,
   callAuthApi,
   systemAdminAction,
+  systemAdminChangeEmail,
   systemAdminListUsers,
   SYSTEM_ADMIN_MESSAGES,
 };

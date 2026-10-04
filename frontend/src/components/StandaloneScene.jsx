@@ -8,7 +8,7 @@ import { CityScene } from './CityScene';
 // amanecer (DawnBackdrop), pero si se llega sin él (p. ej. con "adelante" del
 // navegador tras volver al login) son estas las que dan el fondo.
 const PATHS = [
-  '/login', '/register', '/verify-email', '/forgot-password',
+  '/login', '/register', '/verify-email', '/forgot-password', '/confirmar-correo',
   '/verify-otp', '/aprobar-celular', '/elegir-metodo', '/configurar-app',
 ];
 

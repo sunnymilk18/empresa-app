@@ -140,6 +140,9 @@ export const api = {
     request('/api/auth/password-reset/request', { method: 'POST', body: payload }),
   confirmPasswordReset: (payload) =>
     request('/api/auth/password-reset/confirm', { method: 'POST', body: payload }),
+  // La propia persona confirma el correo nuevo con el código que le llegó ahí.
+  confirmEmailChange: (payload) =>
+    request('/api/auth/change-email/confirm', { method: 'POST', body: payload }),
 
   me: (token) => request('/api/me', { token }),
 
@@ -206,6 +209,14 @@ export const api = {
     request(`/api/local-users/${encodeURIComponent(authUserId)}/reset-pin`, {
       method: 'POST',
       body: { reason, pin },
+      token,
+    }),
+  // Inicia la corrección del correo de otra persona: le llega un código al correo nuevo
+  // y ella lo confirma (el admin no lo ve). reason y pin como en las demás acciones.
+  changeUserEmail: (authUserId, newEmail, reason, pin, token) =>
+    request(`/api/local-users/${encodeURIComponent(authUserId)}/change-email`, {
+      method: 'POST',
+      body: { new_email: newEmail, reason, pin },
       token,
     }),
   // Le manda a la persona el código para restablecer su contraseña (ella la elige).
