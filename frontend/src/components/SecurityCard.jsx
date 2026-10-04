@@ -8,7 +8,8 @@ import { PinSetupModal } from './PinSetupModal';
 // autenticadora. Sirve para cualquier rol y para cuentas que ya pasaron su
 // primer login (donde se elige el método). Un superadmin con PIN (cuando el
 // servidor lo exige, features.adminPin) también puede cambiarlo desde aquí.
-export function SecurityCard() {
+// `embedded`: sin tarjeta ni título propios, para ir dentro de "Mi cuenta".
+export function SecurityCard({ embedded = false }) {
   const { accessToken, profile, reloadProfile } = useAuth();
   const [settingUp, setSettingUp] = useState(false);
   const [disabling, setDisabling] = useState(false);
@@ -43,12 +44,28 @@ export function SecurityCard() {
   }
 
   return (
-    <div className="card">
-      <h2>Seguridad</h2>
+    <div className={embedded ? 'account-security' : 'card'}>
+      {!embedded && <h2>Seguridad</h2>}
       <ul className="kv">
         <li>
           <span>Segundo factor</span>
-          <span>{usesApp ? '📱 App autenticadora' : '📧 Código por correo'}</span>
+          <span className="factor">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              {usesApp ? (
+                <>
+                  <rect x="7" y="2.5" width="10" height="19" rx="2" />
+                  <path d="M11 18.5h2" />
+                </>
+              ) : (
+                <>
+                  <rect x="3" y="5" width="18" height="14" rx="2" />
+                  <path d="M3 7l9 6 9-6" />
+                </>
+              )}
+            </svg>
+            {usesApp ? 'App autenticadora' : 'Código por correo'}
+            {usesApp && <span className="badge badge-active">Activa</span>}
+          </span>
         </li>
       </ul>
 
@@ -63,49 +80,47 @@ export function SecurityCard() {
             </button>
           </TotpSetup>
         </div>
-      ) : usesApp ? (
-        <button
-          type="button"
-          className="table-action table-action--danger"
-          style={{ marginTop: 16 }}
-          onClick={disable}
-          disabled={disabling}
-        >
-          {disabling ? 'Desactivando...' : 'Desactivar app autenticadora'}
-        </button>
       ) : (
         <>
-          <p className="muted" style={{ marginTop: 12 }}>
-            La app autenticadora es más segura que el correo, pero si pierdes el celular no
-            podrás entrar.
-          </p>
-          <button
-            type="button"
-            className="table-action"
-            onClick={() => {
-              setError('');
-              setNotice('');
-              setSettingUp(true);
-            }}
-          >
-            Activar app autenticadora
-          </button>
+          {!usesApp && (
+            <p className="muted" style={{ marginTop: 12 }}>
+              La app autenticadora es más segura que el correo, pero si pierdes el celular no
+              podrás entrar.
+            </p>
+          )}
+          <div className="account-actions">
+            {usesApp ? (
+              <button type="button" className="table-action" onClick={disable} disabled={disabling}>
+                {disabling ? 'Desactivando...' : 'Desactivar app autenticadora'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="table-action"
+                onClick={() => {
+                  setError('');
+                  setNotice('');
+                  setSettingUp(true);
+                }}
+              >
+                Activar app autenticadora
+              </button>
+            )}
+            {canChangePin && (
+              <button
+                type="button"
+                className="table-action"
+                onClick={() => {
+                  setError('');
+                  setNotice('');
+                  setChangingPin(true);
+                }}
+              >
+                Cambiar PIN
+              </button>
+            )}
+          </div>
         </>
-      )}
-
-      {canChangePin && (
-        <button
-          type="button"
-          className="table-action"
-          style={{ marginTop: 16 }}
-          onClick={() => {
-            setError('');
-            setNotice('');
-            setChangingPin(true);
-          }}
-        >
-          Cambiar PIN
-        </button>
       )}
 
       {changingPin && (

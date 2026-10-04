@@ -9,16 +9,19 @@ const usersStmt = db.prepare(`
     COUNT(*) FILTER (WHERE role = 'user')::int                             AS "user",
     COUNT(*) FILTER (WHERE blocked_at IS NOT NULL)::int                    AS blocked,
     COUNT(*) FILTER (WHERE created_at >= NOW() - INTERVAL '7 days')::int   AS new_last_7d,
-    COUNT(*) FILTER (WHERE last_login_at >= NOW() - INTERVAL '7 days')::int AS active_last_7d
+    COUNT(*) FILTER (WHERE last_login_at >= NOW() - INTERVAL '7 days')::int AS active_last_7d,
+    COUNT(*) FILTER (WHERE auth_api_pending_action IS NOT NULL)::int       AS pending_sync
   FROM local_users
 `);
 
+// Mismos 7 días calendario de Chile (incluido hoy) que el gráfico por día, para
+// que los totales de uno y otro coincidan.
 const loginsStmt = db.prepare(`
   SELECT
     COUNT(*) FILTER (WHERE result = 'success')::int AS success_last_7d,
     COUNT(*) FILTER (WHERE result = 'blocked')::int AS blocked_last_7d
   FROM login_history
-  WHERE created_at >= NOW() - INTERVAL '7 days'
+  WHERE created_at >= (((NOW() AT TIME ZONE 'America/Santiago')::date - 6)::timestamp AT TIME ZONE 'America/Santiago')
 `);
 
 // Inicios de sesión por día de los últimos 7 días (día calendario de Chile,

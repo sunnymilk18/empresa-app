@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useDawn } from '../auth/DawnContext';
-import { AdminSummary } from '../components/AdminSummary';
+import { AdminSummary, useAdminStats } from '../components/AdminSummary';
 import { FallingText } from '../components/FallingText';
 import { SecurityCard } from '../components/SecurityCard';
 import { greetingOf, useChileHour } from '../utils/dayPhase';
@@ -11,6 +10,8 @@ import { formatRut } from '../utils/rut';
 export function DashboardPage() {
   const { profile } = useAuth();
   const hour = useChileHour();
+  const isSuperadmin = profile?.role === 'superadmin';
+  const { stats, error: statsError } = useAdminStats(isSuperadmin);
   // Llega de las pantallas del login (el amanecer sigue de fondo, recién se
   // está apagando): el recuadro hace su entrada. Al volver desde otra pestaña, no.
   const { dawn } = useDawn();
@@ -34,27 +35,20 @@ export function DashboardPage() {
         <span className={`badge badge-${profile?.role}`}>{profile?.role}</span>
       </div>
 
-      {profile?.role === 'superadmin' && <AdminSummary intro={intro} />}
+      {isSuperadmin && <AdminSummary stats={stats} error={statsError} intro={intro} />}
 
       <div className="cards">
-        <div className="card">
-          <h2>Perfil del usuario</h2>
-          <ul className="kv">
-            <li><span>Email</span><span>{profile?.email}</span></li>
-            <li><span>Usuario</span><span>{profile?.username}</span></li>
-            <li><span>RUT</span><span>{formatRut(profile?.rut)}</span></li>
-          </ul>
-        </div>
-
-        <SecurityCard />
-
-        {profile?.role === 'superadmin' && (
-          <div className="card">
-            <h2>Usuarios</h2>
-            <p className="muted">Revisa quién ha ingresado al sistema y administra sus roles.</p>
-            <Link to="/usuarios" className="button-link">Ir a usuarios</Link>
+        <div className="card account">
+          <div>
+            <h2>Mi cuenta</h2>
+            <ul className="kv">
+              <li><span>Email</span><span>{profile?.email}</span></li>
+              <li><span>Usuario</span><span>{profile?.username}</span></li>
+              <li><span>RUT</span><span>{formatRut(profile?.rut)}</span></li>
+            </ul>
           </div>
-        )}
+          <SecurityCard embedded />
+        </div>
       </div>
     </div>
   );
