@@ -11,7 +11,7 @@ export function DashboardPage() {
   const hour = useChileHour();
 
   return (
-    <div className="page page--std">
+    <div className="page page--std page--fit">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginBottom: '18px', flexWrap: 'wrap' }}>
         <div>
           <p className="muted" style={{ margin: 0, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>Dashboard</p>

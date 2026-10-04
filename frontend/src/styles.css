@@ -668,6 +668,8 @@ body[data-phase="day"] { --glow: 255, 236, 190; }
 .page--scroll { display: flex; flex-direction: column; max-height: var(--page-h); }
 /* Medida estándar del recuadro principal: el dashboard no baja de ella y las pestañas con listas no pasan de ella. */
 .page--std { min-height: var(--page-h); }
+/* Dashboard: si el contenido no cabe en el alto estándar (pantallas de 1080p), se desplaza dentro del recuadro en vez de estirarlo. */
+.page--fit { max-height: var(--page-h); overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(126, 166, 255, 0.45) transparent; }
 .page--scroll > .table-wrap { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: rgba(126, 166, 255, 0.45) transparent; }
 .page--scroll .table thead th { position: sticky; top: 0; z-index: 1; background: rgb(10, 18, 52); }
 .page--scroll > .table-wrap::-webkit-scrollbar { width: 10px; height: 10px; }
