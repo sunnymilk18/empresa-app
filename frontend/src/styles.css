@@ -25,12 +25,12 @@
   --page-w: 1340px; /* ancho estándar del recuadro principal de todas las pestañas */
   --page-h: 930px; /* alto estándar del recuadro principal de todas las pestañas */
   /* Escala de letra: nada por debajo de 14px. Todo el CSS usa solo estos tamaños. */
-  --fs-xs: 1rem;   /* 14px: etiquetas, insignias, pistas */
-  --fs-sm: 1.125rem;       /* 16px: texto secundario, tablas, formularios, botones chicos */
-  --fs-md: 1.0850rem;  /* 17px: texto base y campos */
-  --fs-lg: 1.1999rem;  /* 19px: subtítulos y títulos de tarjeta */
-  --fs-xl: 1.750rem;   /* 26px: título de página */
-  --fs-num: 1.999rem;  /* 30px: cifras del resumen */
+  --fs-xs: 0.9375rem;   /* 15px: etiquetas, insignias, pistas */
+  --fs-sm: 1.0625rem;       /* 17px: texto secundario, tablas, formularios, botones chicos */
+  --fs-md: 1.025rem;  /* 16px: texto base y campos */
+  --fs-lg: 1.125rem;  /* 18px: subtítulos y títulos de tarjeta */
+  --fs-xl: 1.625rem;   /* 26px: título de página */
+  --fs-num: 1.875rem;  /* 30px: cifras del resumen */
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --font: 'Nunito Sans', 'Segoe UI', system-ui, sans-serif;
   color-scheme: dark;
