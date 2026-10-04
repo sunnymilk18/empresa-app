@@ -4,7 +4,13 @@ import { CityScene } from './CityScene';
 // Paisaje y luna de las pantallas de antes del login: el login, el registro,
 // confirmar correo y recuperar contraseña. Vive fuera de las rutas, así que al
 // pasar de una a otra queda quieto y solo cambia la tarjeta (no se corta de golpe).
-const PATHS = ['/login', '/register', '/verify-email', '/forgot-password'];
+// También está bajo las del segundo factor: normalmente las tapa el cielo del
+// amanecer (DawnBackdrop), pero si se llega sin él (p. ej. con "adelante" del
+// navegador tras volver al login) son estas las que dan el fondo.
+const PATHS = [
+  '/login', '/register', '/verify-email', '/forgot-password',
+  '/verify-otp', '/aprobar-celular', '/elegir-metodo', '/configurar-app',
+];
 
 export function StandaloneScene() {
   const { pathname } = useLocation();

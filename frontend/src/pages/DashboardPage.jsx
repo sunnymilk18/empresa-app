@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { useDawn } from '../auth/DawnContext';
@@ -15,9 +15,15 @@ export function DashboardPage() {
   // está apagando): el recuadro hace su entrada. Al volver desde otra pestaña, no.
   const { dawn } = useDawn();
   const [intro] = useState(dawn);
+  const [introDone, setIntroDone] = useState(!intro);
+  useEffect(() => {
+    if (introDone) return undefined;
+    const timer = setTimeout(() => setIntroDone(true), 3200); // lo que dura la entrada (ver .page--intro)
+    return () => clearTimeout(timer);
+  }, [introDone]);
 
   return (
-    <div className={`page page--std page--fit${intro ? ' page--intro' : ''}`}>
+    <div className={`page page--std page--fit${intro ? ' page--intro' : ''}${intro && introDone ? ' intro-done' : ''}`}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginBottom: '18px', flexWrap: 'wrap' }}>
         <div>
           <p className="muted" style={{ margin: 0, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>Dashboard</p>

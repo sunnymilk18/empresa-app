@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth/AuthContext';
+import { TableSkeleton } from '../components/TableSkeleton';
 import { formatRut } from '../utils/rut';
 
 function formatDate(value) {
@@ -21,9 +22,7 @@ function formatDate(value) {
 // en otro servidor y tarda más que la base local).
 const cache = new Map();
 
-// Filas de relleno mientras llega la primera respuesta, para que el recuadro
-// tenga su forma desde el principio.
-const SKELETON_ROWS = 6;
+const COLUMNS = ['Email', 'Usuario', 'RUT', 'Verificado', 'Segundo factor', 'Estado', 'Registrada'];
 
 // Todas las cuentas registradas en la auth-api para este sistema, incluidas
 // las que nunca completaron su primer login (por eso no aparecen en
@@ -134,30 +133,7 @@ export function CuentasRegistradasPage() {
       {error && <p className="error">{error}</p>}
 
       {loading && users.length === 0 ? (
-        <div className="table-wrap" aria-busy="true">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Email</th>
-                <th>Usuario</th>
-                <th>RUT</th>
-                <th>Verificado</th>
-                <th>Segundo factor</th>
-                <th>Estado</th>
-                <th>Registrada</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Array.from({ length: SKELETON_ROWS }, (_, i) => (
-                <tr key={i}>
-                  {Array.from({ length: 7 }, (_, j) => (
-                    <td key={j}><span className="skeleton-bar" /></td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <TableSkeleton headers={COLUMNS} />
       ) : users.length === 0 && !error ? (
         <p className="muted">
           {q ? 'Ninguna cuenta coincide con la búsqueda.' : 'Todavía no hay cuentas registradas.'}

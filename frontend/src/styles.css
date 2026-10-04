@@ -21,7 +21,6 @@
   --danger-solid: #d92d12;
   --warning: #fcd34d;
   --radius: 14px;
-  --glow: 126, 166, 255; /* luz que sigue al cursor sobre las tarjetas: azul pálido (luna) de noche; blanco cálido (sol) de día, ver body[data-phase="day"] */
   --page-w: 1180px; /* ancho estándar del recuadro principal de todas las pestañas */
   --page-h: clamp(560px, calc(100vh - 180px), 930px); /* alto estándar del recuadro principal de todas las pestañas: hasta 930px en pantallas altas; en 1080p se ajusta para que entre completo y deje ver la ciudad (180px = barra + márgenes + franja de ciudad) */
   /* Escala de letra: nada por debajo de 14px. Todo el CSS usa solo estos tamaños. */
@@ -102,7 +101,7 @@ body:has(.auth-sky) .starfield { opacity: 0; }
 .navbar {
   display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
   gap: 12px 24px; padding: 14px 28px; color: var(--text);
-  background: rgba(8, 14, 40, 0.6); border-bottom: 1px solid var(--border);
+  background: var(--surface); border-bottom: 1px solid var(--border); /* el mismo color del recuadro central: translúcido, el cielo de día lo aclaraba */
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
 }
 .navbar-brand { display: flex; align-items: center; }
@@ -237,17 +236,30 @@ body[data-phase] .starfield {
 .sunset-overlay > .auth-sky { background: none; }
 .sunset-overlay .auth-sky svg { animation: sky-fade 1.6s ease-in 0.4s both; }
 .sunset-overlay .sky-cloud { animation: none; }
-.sunset-overlay .sky-sun { animation: sun-set 2s cubic-bezier(0.45, 0.05, 0.55, 0.95) 0.4s both; }
+.sunset-overlay .sky-sun {
+  animation: sun-set-x 2s cubic-bezier(0.45, 0.05, 0.55, 0.95) 0.4s both, sun-set-y 2s cubic-bezier(0.5, 0, 0.8, 0.6) 0.4s both, sun-set-size 2s ease-in-out 0.4s both;
+}
+/* Con la noche elegida: sigue de noche (mismo cielo del login) y el sol sube desde atrás de los cerros hasta el valle. */
+.sunset-overlay.is-night::before { background: linear-gradient(180deg, #080e2c 0%, #0c1548 55%, #101b58 100%); animation: none; }
+.sunset-overlay.is-night .sky-sun { animation: sun-rise-night 2s cubic-bezier(0.3, 0.7, 0.3, 1) 0.5s both; }
+@keyframes sun-rise-night { from { transform: translateY(10vw); } }
+/* El resplandor y la franja dorada del horizonte (parte del paisaje del login) se encienden mientras sube el sol, para que al final no cambie esa zona del cielo. El disco del paisaje se oculta: lo reemplaza .sky-sun. */
+.sunset-overlay.is-night .scene-sky { display: block; animation: horizon-in 1.6s ease-out 0.5s both; }
+.sunset-overlay.is-night .scene-sun { opacity: 1; animation: horizon-in 1.6s ease-out 0.5s both; }
+.sunset-overlay.is-night .scene-sun circle:not(.scene-glow) { display: none; }
+@keyframes horizon-in { from { opacity: 0; } }
+/* Las estrellas pasan por encima de la capa (ya están limitadas al cielo por su máscara): así no desaparecen y vuelven a aparecer. */
+body:has(.sunset-overlay.is-night) .starfield { z-index: 61; }
 @keyframes sunset-life {
   0% { opacity: 0; }
   13%, 82% { opacity: 1; }
   100% { opacity: 0; }
 }
 @keyframes sky-fade { to { opacity: 0; } }
-@keyframes sun-set {
-  from { transform: translateY(-46vh) scale(1.6); }
-  to { transform: translateY(0) scale(1); }
-}
+/* El sol baja desde su sitio en el panel (arriba a la derecha, como .sky-orb--sun) hasta el valle. Cada eje con su curva, para que el camino sea un arco y no una diagonal. */
+@keyframes sun-set-x { from { left: 88%; } }
+@keyframes sun-set-y { from { top: 16%; } }
+@keyframes sun-set-size { from { width: 96px; height: 96px; margin: -48px 0 0 -48px; box-shadow: 0 0 60px 25px rgba(248, 216, 8, 0.45); } }
 
 /* Cielo (components/SkyOpening.jsx): nubes, cóndores y un avión. */
 .dawn-backdrop > .auth-sky {
@@ -267,16 +279,15 @@ body[data-phase] .starfield {
   from { transform: translateX(-35px); }
   to { transform: translateX(35px); }
 }
-/* Sol del amanecer: nace en el valle donde se pone el de la escena (55% del ancho; 64 de 800 unidades de la escena sobre el borde inferior = 8vw) y sube por el cielo. */
+/* Sol del amanecer: nace en el valle donde se pone el de la escena (55% del ancho; 8vw sobre el borde inferior) y sube en arco hasta arriba a la derecha, donde vive el sol del panel (.sky-orb--sun: 88% / 16%, 96px), para que al llegar al dashboard no salte de lugar. */
 .sky-sun {
-  position: absolute; left: 55%; bottom: 8vw; width: 6vw; height: 6vw; margin: 0 0 -3vw -3vw; border-radius: 50%;
+  position: absolute; left: 55%; top: calc(100% - 8vw); width: 6vw; height: 6vw; margin: -3vw 0 0 -3vw; border-radius: 50%;
   background: #f8e208; box-shadow: 0 0 4vw 2vw rgba(248, 216, 8, 0.4), 0 0 12vw 5vw rgba(248, 190, 30, 0.14);
-  animation: sun-climb 2.8s cubic-bezier(0.3, 0.7, 0.3, 1) both;
+  animation: sun-climb-x 2.8s cubic-bezier(0.4, 0, 0.6, 1) both, sun-climb-y 2.8s cubic-bezier(0.2, 0.7, 0.3, 1) both, sun-climb-size 2.8s ease-in-out both;
 }
-@keyframes sun-climb {
-  from { transform: translateY(0) scale(1); }
-  to { transform: translateY(-46vh) scale(1.6); }
-}
+@keyframes sun-climb-x { to { left: 88%; } }
+@keyframes sun-climb-y { to { top: 16%; } }
+@keyframes sun-climb-size { to { width: 96px; height: 96px; margin: -48px 0 0 -48px; box-shadow: 0 0 60px 25px rgba(248, 216, 8, 0.45); } }
 .sky-cloud { animation: cloud-in 2.6s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
 .sky-condor { animation: condor-fly 6s linear infinite; }
 .sky-drift { animation: cloud-drift 40s ease-in-out infinite alternate; }
@@ -561,6 +572,8 @@ button:disabled { opacity: 0.55; cursor: default; transform: none; box-shadow: n
 /* Llegada al dashboard desde el login: el recuadro entra cuando el amanecer ya se apagó, su borde brilla con el último sol y su contenido entra en cascada. */
 @keyframes page-glow { 0% { opacity: 0; } 20% { opacity: 1; } 100% { opacity: 0; } }
 .page--intro { position: relative; animation: auth-card-in 0.7s var(--ease) 0.6s backwards; }
+/* Mientras entra, lo que sube no debe generar barra de scroll; se suelta al terminar (clase intro-done, DashboardPage). */
+.page--intro:not(.intro-done) { overflow: hidden; }
 .page--intro::after {
   content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
   border: 1px solid rgba(252, 180, 12, 0.6); box-shadow: inset 0 0 70px rgba(252, 180, 12, 0.22);
@@ -577,6 +590,18 @@ button:disabled { opacity: 0.55; cursor: default; transform: none; box-shadow: n
 .daily-stack { transform-origin: bottom; transition: transform 0.7s var(--ease); transition-delay: calc(var(--i, 0) * 70ms); }
 .daily-stack--pre { transform: scaleY(0); }
 
+/* Las filas de una lista entran en cascada al aparecer (al cambiar de página o de filtro se vuelven a montar y se repite; al editar una fila, no). */
+/* Solo opacidad: un desplazamiento haría que el contenedor con scroll mostrara su barra un instante. */
+@keyframes row-in { from { opacity: 0; } to { opacity: 1; } }
+.table tbody tr { animation: row-in 0.4s var(--ease) backwards; }
+.table tbody tr:nth-child(2) { animation-delay: 0.03s; }
+.table tbody tr:nth-child(3) { animation-delay: 0.06s; }
+.table tbody tr:nth-child(4) { animation-delay: 0.09s; }
+.table tbody tr:nth-child(5) { animation-delay: 0.12s; }
+.table tbody tr:nth-child(6) { animation-delay: 0.15s; }
+.table tbody tr:nth-child(7) { animation-delay: 0.18s; }
+.table tbody tr:nth-child(8) { animation-delay: 0.21s; }
+.table tbody tr:nth-child(n + 9) { animation-delay: 0.24s; }
 /* Barras de relleno mientras carga una tabla. */
 .skeleton-bar { display: block; width: 70%; height: 14px; border-radius: 6px; background: rgba(255, 255, 255, 0.08); animation: skeleton-pulse 1.4s ease-in-out infinite; }
 @keyframes skeleton-pulse { 50% { opacity: 0.4; } }
@@ -712,21 +737,23 @@ button:disabled { opacity: 0.55; cursor: default; transform: none; box-shadow: n
 }
 .recent-list .recent-date { margin-left: auto; }
 
-/* Tarjetas: el resplandor sigue al mouse (utils/spotlight.js) y entran escalonadas. */
+/* Tarjetas: entran escalonadas y, al pasar el mouse, les nace una línea de acento arriba. */
 .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 16px; }
 .card, .stat {
   position: relative; isolation: isolate;
-  transition: border-color 0.35s var(--ease), box-shadow 0.35s var(--ease);
+  transition: background-color 0.3s var(--ease);
 }
 .card { border: 1px solid rgba(255, 255, 255, 0.05); border-radius: var(--radius); padding: 18px; background: var(--surface-alt); }
+/* Al pasar el mouse: una línea de acento nace en el borde superior y se extiende de izquierda a derecha, y el fondo se aclara apenas. */
 .card::before, .stat::before {
-  content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
-  background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 50%), rgba(var(--glow), 0.09), transparent 70%);
-  opacity: 0; transition: opacity 0.4s var(--ease);
+  content: ''; position: absolute; left: 14px; right: 14px; top: -1px; height: 2px; z-index: 1; border-radius: 2px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--line) 15%, var(--line) 85%, transparent);
+  transform: scaleX(0); transform-origin: left; transition: transform 0.45s var(--ease);
 }
-.card:hover, .stat:hover { border-color: rgba(var(--glow), 0.3); box-shadow: 0 10px 30px rgba(var(--glow), 0.05); }
-body[data-phase="day"] { --glow: 255, 236, 190; }
-.card:hover::before, .stat:hover::before { opacity: 1; }
+.card:hover::before, .stat:hover::before { transform: scaleX(1); }
+.card:not(.modal):hover, .stat:hover { background-color: rgba(255, 255, 255, 0.075); }
+:root { --line: var(--accent); }
+body[data-phase="day"] { --line: var(--gold); }
 
 .cards > *, .stat-grid > * { animation: rise 0.7s var(--ease) backwards; }
 .cards > :nth-child(2), .stat-grid > :nth-child(2) { animation-delay: 0.08s; }

@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { DatePicker } from '../components/DatePicker';
+import { TableSkeleton } from '../components/TableSkeleton';
 import { formatIp } from '../utils/ip';
 
 // Mismas acciones que backend/src/lib/audit.js (AUDIT_ACTIONS) — se
@@ -252,7 +253,9 @@ export function ActividadPage() {
 
       {error && <p className="error">{error}</p>}
 
-      {!loading && entries.length === 0 && !error ? (
+      {loading && entries.length === 0 && !error ? (
+        <TableSkeleton headers={['Fecha', 'Quién', 'Acción', 'IP']} />
+      ) : !loading && entries.length === 0 && !error ? (
         <p className="muted">
           {hasFilters ? 'Ningún registro coincide con los filtros.' : 'Todavía no hay actividad registrada.'}
         </p>
@@ -281,7 +284,7 @@ export function ActividadPage() {
         </div>
       )}
 
-      {loading && <p>Cargando...</p>}
+      {loading && entries.length > 0 && <p className="muted">Cargando...</p>}
       {hasMore && !loading && (
         <button className="table-action" style={{ marginTop: 16 }} onClick={() => load(entries[entries.length - 1].id)}>
           Cargar más

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth/AuthContext';
+import { TableSkeleton } from '../components/TableSkeleton';
 import { formatRut } from '../utils/rut';
 import { blockConfirmText, pendingText } from '../utils/moderation';
 import { pinErrorMessage } from '../utils/pin';
@@ -218,7 +219,7 @@ export function UsuariosPage() {
       {warning && <p className="warning">⚠ {warning}</p>}
 
       {loading && users.length === 0 ? (
-        <p>Cargando...</p>
+        <TableSkeleton headers={['Email', 'Usuario', 'RUT', 'Rol', 'Último ingreso', 'Estado', '']} />
       ) : users.length === 0 ? (
         <p className="muted">
           {hasFilters ? 'Ningún usuario coincide con la búsqueda.' : 'Todavía no hay usuarios.'}
