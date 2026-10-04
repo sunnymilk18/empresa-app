@@ -131,11 +131,11 @@ async function finishLogin(req, res, upstream, blockedExtra = {}) {
   if (localUser) {
     await logLoginEvent(req, localUser, synced.method, localUser.blocked_at ? 'blocked' : 'success');
   }
-  // Los superadmin llevan el PIN obligatorio al login: se deja activado en la
-  // auth-api (idempotente, sin esperar). Así cubre también a quien ya lo era
-  // antes de encender esto y al primer superadmin del sistema.
-  if (config.adminLoginPinEnforced && localUser?.role === 'superadmin' && !localUser.blocked_at) {
-    systemAdminSetLoginPin(localUser.auth_user_id, true).catch(() => {});
+  // El PIN obligatorio al login depende del rol: se deja en la auth-api como
+  // corresponda (idempotente, sin esperar). Así cubre también a quien ya tenía
+  // ese rol antes de configurar esto y apaga el PIN si su rol ya no lo exige.
+  if (config.loginPinRoles && localUser && !localUser.blocked_at) {
+    systemAdminSetLoginPin(localUser.auth_user_id, config.loginPinRoles.includes(localUser.role)).catch(() => {});
   }
   if (localUser?.blocked_at) {
     await callAuthApi('/auth/logout', {

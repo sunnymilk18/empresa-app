@@ -23,6 +23,24 @@ function retentionDays(name, fallback) {
   return Number(raw.trim());
 }
 
+// Roles cuyo login exige el PIN como último paso (LOGIN_PIN_ROLES, lista separada
+// por comas). Sin definir devuelve null (el backend no toca ese interruptor en la
+// auth-api); definida pero vacía, [] (nadie lo exige y se apaga donde estaba
+// puesto). Un rol desconocido detiene el arranque: un error de tipeo no debe
+// dejar a un rol sin la protección que se quería.
+function loginPinRoles(name) {
+  const raw = process.env[name];
+  if (raw === undefined) return null;
+  const roles = raw.split(',').map((r) => r.trim()).filter(Boolean);
+  const bad = roles.find((r) => !['superadmin', 'admin', 'user'].includes(r));
+  if (bad) {
+    // eslint-disable-next-line no-console
+    console.error(`${name}: rol desconocido "${bad}". Usa superadmin, admin y/o user separados por comas.`);
+    process.exit(1);
+  }
+  return roles;
+}
+
 // Zona horaria en la que se interpretan los filtros por fecha del registro de
 // actividad ('YYYY-MM-DD'). Un valor inválido detiene el arranque.
 function timezone(name, fallback) {
@@ -57,12 +75,11 @@ const config = {
   // lib/adminPin.js). Apagado por defecto: se enciende cuando las apps ya lo
   // envían.
   adminPinEnforced: process.env.ADMIN_PIN_ENFORCED === 'true',
-  // PIN obligatorio como último paso del login de los superadmin (después de la
-  // contraseña y del segundo factor). Es un interruptor por cuenta en la
-  // auth-api; con esto encendido, el backend lo activa en cada superadmin (al
-  // loguear o al darle el rol) y lo apaga al quitárselo. Apagado por defecto:
-  // enciéndelo cuando el frontend con la pantalla de PIN ya esté desplegado.
-  adminLoginPinEnforced: process.env.ADMIN_LOGIN_PIN === 'true',
+  // Roles que deben ingresar el PIN como último paso del login (tras la contraseña
+  // y el segundo factor). Es un interruptor por cuenta en la auth-api; el backend
+  // lo activa o apaga según el rol de cada cuenta (al loguear y al cambiarle el
+  // rol). null = sin definir: no se toca. Ver README, "PIN obligatorio al iniciar sesión".
+  loginPinRoles: loginPinRoles('LOGIN_PIN_ROLES'),
   appTimezone: timezone('APP_TIMEZONE', 'America/Santiago'),
   // Limpieza automática de registros antiguos (ver lib/retention.js).
   loginHistoryRetentionDays: retentionDays('LOGIN_HISTORY_RETENTION_DAYS', 365),

@@ -121,10 +121,9 @@ router.put('/local-users/:authUserId/role', requireAuth, requireRole('superadmin
   }
   const updated = await setRole(req.params.authUserId, role, actorOf(req), reason);
   if (!updated) return res.status(404).json({ error: 'Usuario no encontrado' });
-  // El PIN obligatorio al login sigue al rol: se enciende al darle superadmin y
-  // se apaga al quitárselo (si falla, se reajusta en su próximo login de superadmin).
-  if (config.adminLoginPinEnforced) {
-    systemAdminSetLoginPin(updated.auth_user_id, updated.role === 'superadmin').catch(() => {});
+  // El PIN obligatorio al login sigue al rol (si falla, se reajusta en su próximo login).
+  if (config.loginPinRoles) {
+    systemAdminSetLoginPin(updated.auth_user_id, config.loginPinRoles.includes(updated.role)).catch(() => {});
   }
   res.json({ user: updated });
 }));

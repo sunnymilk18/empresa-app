@@ -274,9 +274,9 @@ que no lleva ninguna API key. Dos diferencias con la web:
 | POST / DELETE | `/api/auth/devices/:id/push` | con sesión | Activar / desactivar la aprobación por push en ese dispositivo |
 | POST | `/api/auth/login/push-answer` | con sesión | Responder desde el celular a un login pendiente de otro dispositivo |
 
-### PIN obligatorio al iniciar sesión (superadmin)
+### PIN obligatorio al iniciar sesión (por rol)
 
-Con `ADMIN_LOGIN_PIN=true`, los superadmin tienen un tercer paso en el login:
+Con `LOGIN_PIN_ROLES=superadmin,admin` (lista de roles: `superadmin`, `admin` y/o `user`), esos roles tienen un tercer paso en el login:
 contraseña → segundo factor (código, app o push) → **PIN**. Hasta ingresarlo no
 existe sesión: la auth-api no emite tokens (`verify-otp`, `totp/confirm` y
 `login/push-status` responden `{ pin_required, pin_token, pin_set }` en vez de
@@ -288,11 +288,16 @@ tokens) y el frontend lleva a `/pin-login`. Si la cuenta aún no tiene PIN
 | POST | `/api/auth/login/pin` | público | Completa el login con `{ pin_token, pin }` (más `create: true` si `pin_set` era `false`). Entrega los tokens y pasa por el mismo control que cualquier login (cuenta bloqueada, historial, cookie del refresh). Errores: 401 `pin_token` vencido o usado, 403 `pin_invalid` (con `attempts_left`), 423 `pin_locked` (con `retry_after_seconds`) |
 
 El interruptor vive por cuenta en la auth-api (`PUT
-/system-admin/users/{id}/login-pin-required`) y este backend lo sincroniza: lo
-activa al darle el rol superadmin y en cada login de un superadmin, y lo apaga al
-quitárselo. Enciende `ADMIN_LOGIN_PIN` solo después de desplegar el frontend con
-la pantalla de PIN (si no, los superadmin no podrían entrar). Siempre conviene
-tener al menos dos superadmins: si uno olvida su PIN, otro puede resetearlo.
+/system-admin/users/{id}/login-pin-required`) y este backend lo sincroniza según
+el rol: lo activa al darle a la cuenta un rol de la lista y en cada login de esos
+roles, y lo apaga si su rol ya no está. Con la variable sin definir, el backend no
+toca el interruptor; definida pero vacía (`LOGIN_PIN_ROLES=`), nadie lo exige y se
+apaga donde estaba puesto. Para exigirlo también a los usuarios comunes basta
+agregar `user`, pero antes la app móvil debe entender el paso del PIN (esas
+cuentas no podrían entrar desde ella). Define la variable solo después de
+desplegar el frontend con la pantalla de PIN (si no, esos roles no podrían entrar)
+y recuerda que debe haber al menos dos superadmins: si uno olvida su PIN, otro
+puede resetearlo.
 
 ### PIN de la cuenta y acciones destructivas
 
