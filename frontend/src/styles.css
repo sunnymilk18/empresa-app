@@ -22,7 +22,7 @@
   --warning: #fcd34d;
   --radius: 14px;
   --page-w: 1180px; /* ancho estándar del recuadro principal de todas las pestañas */
-  --page-h: clamp(560px, calc(100vh - 180px), 930px); /* alto estándar del recuadro principal de todas las pestañas: hasta 930px en pantallas altas; en 1080p se ajusta para que entre completo y deje ver la ciudad (180px = barra + márgenes + franja de ciudad) */
+  --page-h: clamp(560px, calc(100vh - 188px), 930px); /* alto estándar del recuadro principal de todas las pestañas: hasta 930px en pantallas altas; en 1080p se ajusta para que entre completo y deje ver la ciudad (188px = barra + márgenes + franja de ciudad) */
   /* Escala de letra: nada por debajo de 14px. Todo el CSS usa solo estos tamaños. */
   --fs-xs: 0.9375rem;   /* 15px: etiquetas, insignias, pistas */
   --fs-sm: 1.0625rem;       /* 17px: texto secundario, tablas, formularios, botones chicos */
@@ -100,12 +100,12 @@ body:has(.auth-sky) .starfield { opacity: 0; }
 
 .navbar {
   display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
-  gap: 12px 24px; padding: 14px 28px; color: var(--text);
+  gap: 12px 24px; padding: 7px 28px; color: var(--text); /* poco relleno vertical: así el logo puede ser grande sin agrandar la barra (60 + 14 = 74px) */
   background: var(--surface); border-bottom: 1px solid var(--border); /* el mismo color del recuadro central: translúcido, el cielo de día lo aclaraba */
   backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
 }
 .navbar-brand { display: flex; align-items: center; }
-.navbar-logo { display: block; height: 38px; width: auto; }
+.navbar-logo { display: block; height: 60px; width: auto; }
 .navbar-links { display: flex; gap: 20px; }
 .navbar-links a { position: relative; color: var(--muted); text-decoration: none; font-size: var(--fs-md); transition: color 0.3s var(--ease); }
 .navbar-links a::after {
@@ -138,7 +138,7 @@ body:has(.auth-sky) .starfield { opacity: 0; }
 .auth-panel {
   --scene-h: clamp(170px, 17.5vw, 400px); /* alto del paisaje: crece con el ancho para no deformarlo */
   flex: 1; overflow: hidden;
-  display: grid; grid-template-columns: 1.15fr 0.85fr;
+  display: grid; grid-template-columns: 1fr 1fr;
   animation: fade-in 0.8s ease backwards;
 }
 
@@ -157,7 +157,7 @@ body:has(.auth-sky) .starfield { opacity: 0; }
 .auth-brand-panel {
   position: relative; overflow: hidden; color: var(--text);
   display: flex; flex-direction: column; justify-content: center;
-  padding: 40px clamp(32px, 6vw, 96px) calc(var(--scene-h) + 24px);
+  padding: 40px clamp(32px, 6vw, 96px) calc(var(--scene-h) * 0.4 + 24px + 3.5rem); /* misma base que la tarjeta del formulario (mismo eje) y 3.5rem más arriba: el bloque es mucho más bajo que el formulario y centrado exacto se ve caído */
 }
 /* Cielo del login: el mismo color a los dos lados (degradado vertical en el body) y un ruido finísimo encima que evita las franjas del degradado (banding). */
 body:has(.auth-shell), body:has(.standalone-scene) { background: linear-gradient(180deg, #080e2c 0%, #0c1548 55%, #101b58 100%); }
@@ -329,26 +329,15 @@ body:has(.sunset-overlay.is-night) .starfield { z-index: 61; }
 .scene-window { animation: window-flicker 4.5s ease-in-out infinite; }
 .scene-glow { transform-box: fill-box; transform-origin: center; animation: sun-glow 7s ease-in-out infinite; }
 
-.auth-logo { display: block; width: min(300px, 100%); height: auto; margin-bottom: 24px; filter: drop-shadow(0 6px 24px rgba(0, 0, 0, 0.4)); }
-
-.auth-brand-kicker {
-  margin: 0 0 18px; font-size: var(--fs-xs); letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold);
-}
+.auth-logo { display: block; width: min(400px, 100%); height: auto; margin-bottom: 24px; filter: drop-shadow(0 6px 24px rgba(0, 0, 0, 0.4)); }
 
 .auth-brand-panel h1 {
-  font-size: clamp(2.5rem, 3.4vw, 4.4rem); line-height: 1.06; margin: 0 0 18px; color: #fff;
+  font-size: clamp(2.3rem, 3vw, 3.8rem); line-height: 1.06; margin: 0 0 18px; color: #fff;
 }
-
-.auth-brand-copy { margin: 0 0 34px; color: rgba(227, 232, 244, 0.78); line-height: 1.7; max-width: 30rem; font-size: var(--fs-lg); }
-
-.auth-points { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; color: rgba(227, 232, 244, 0.9); }
-.auth-points li { display: flex; align-items: center; gap: 10px; font-size: var(--fs-md); animation: rise 0.7s var(--ease) backwards; }
-.auth-points li:nth-child(1) { animation-delay: 0.5s; }
-.auth-points li:nth-child(2) { animation-delay: 0.62s; }
-.auth-points li:nth-child(3) { animation-delay: 0.74s; }
-.auth-points li::before {
-  content: ''; width: 9px; height: 9px; border-radius: 50%;
-  background: var(--accent); box-shadow: 0 0 0 5px rgba(126, 166, 255, 0.16), 0 0 14px rgba(126, 166, 255, 0.7);
+/* Línea bajo el título: en el dorado del escudo, entra después de que las letras caen. */
+.auth-brand-kicker {
+  margin: 0; font-size: var(--fs-md); font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--gold);
+  animation: rise 0.7s var(--ease) 0.9s backwards;
 }
 
 .auth-card {

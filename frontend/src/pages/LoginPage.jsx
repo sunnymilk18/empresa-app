@@ -59,16 +59,8 @@ export function LoginPage() {
       <div className="auth-panel">
         <div className="auth-brand-panel">
           <img className="auth-logo" src={logo} alt="Municipalidad de Alto Hospicio" />
-          <p className="auth-brand-kicker">Acceso institucional</p>
-          <h1><FallingText text="Bienvenido al panel municipal" /></h1>
-          <p className="auth-brand-copy">
-            Gestiona usuarios, permisos y accesos de forma segura.
-          </p>
-          <ul className="auth-points">
-            <li>Verificación en dos pasos</li>
-            <li>Registro de cada acción</li>
-            <li>Solo personal autorizado</li>
-          </ul>
+          <h1><FallingText text="Panel de Gestión Municipal" /></h1>
+          <p className="auth-brand-kicker">Alto Hospicio · Multicultural</p>
         </div>
 
         <div className="auth-card auth-card--welcome">
