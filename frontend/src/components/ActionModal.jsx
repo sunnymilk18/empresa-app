@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { PIN_RE, pinErrorMessage, usePinLock } from '../utils/pin';
 import { PinField } from './PinField';
 
@@ -45,7 +46,9 @@ export function ActionModal({
     }
   }
 
-  return (
+  // En el body: dentro de una tarjeta, su contexto de apilamiento dejaba que
+  // los encabezados fijos de las tablas quedaran por encima del modal.
+  return createPortal(
     <div className="modal-overlay" onClick={() => !saving && onCancel()}>
       <div className="modal card" onClick={(e) => e.stopPropagation()}>
         <h2 style={{ marginTop: 0 }}>{title}</h2>
@@ -91,6 +94,7 @@ export function ActionModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
