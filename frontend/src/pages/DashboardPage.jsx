@@ -7,6 +7,36 @@ import { SecurityCard } from '../components/SecurityCard';
 import { greetingOf, useChileHour } from '../utils/dayPhase';
 import { formatRut } from '../utils/rut';
 
+function DashboardClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const time = new Intl.DateTimeFormat('es-CL', {
+    timeZone: 'America/Santiago',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).format(now);
+  const date = new Intl.DateTimeFormat('es-CL', {
+    timeZone: 'America/Santiago',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(now);
+
+  return (
+    <div className="dashboard-clock" aria-label="Hora de Chile">
+      <time className="dashboard-clock__time" dateTime={now.toISOString()}>{time}</time>
+      <span className="dashboard-clock__date">{date}</span>
+    </div>
+  );
+}
+
 export function DashboardPage() {
   const { profile } = useAuth();
   const hour = useChileHour();
@@ -32,7 +62,10 @@ export function DashboardPage() {
             <FallingText text={`${greetingOf(hour)}, ${profile?.username || profile?.email || ''}`} delay={intro ? 900 : 0} />
           </h1>
         </div>
-        <span className={`badge badge-${profile?.role}`}>{profile?.role}</span>
+        <div className="dashboard-meta">
+          <DashboardClock />
+          <span className={`badge badge-${profile?.role}`}>{profile?.role}</span>
+        </div>
       </div>
 
       {isSuperadmin && <AdminSummary stats={stats} error={statsError} intro={intro} />}
