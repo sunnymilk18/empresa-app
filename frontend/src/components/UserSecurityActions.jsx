@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { blockConfirmText, pendingText } from '../utils/moderation';
-import { ReasonModal } from './ReasonModal';
+import { pinErrorMessage } from '../utils/pin';
+import { ActionModal } from './ActionModal';
 
 // Reintentar lo pendiente en la auth-api no es una decisión nueva (ya se
 // decidió al bloquear/desbloquear la primera vez): no se le vuelve a pedir
@@ -10,18 +11,21 @@ import { ReasonModal } from './ReasonModal';
 const RETRY_REASON = 'Reintento de sincronización con el servicio de autenticación.';
 
 // "Acciones de seguridad" sobre la cuenta de otra persona, en su detalle:
-// bloquear/desbloquear (aquí y en la auth-api), cerrar todas sus sesiones y
-// desactivar su app autenticadora. Las dos últimas requieren la credencial
-// de administración de la auth-api en el backend (features.authApiModeration).
+// bloquear/desbloquear (aquí y en la auth-api), cerrar todas sus sesiones,
+// desactivar su app autenticadora y resetear su PIN. Las tres últimas
+// requieren la credencial de administración de la auth-api en el backend
+// (features.authApiModeration). Cada una se confirma en un ActionModal, que
+// pide además el PIN si el servidor lo exige (features.adminPin).
 // `lastMethod`: método de su último inicio de sesión ('otp' | 'totp'), como pista.
 export function UserSecurityActions({ user, onUserChange, lastMethod }) {
   const { accessToken, profile } = useAuth();
-  const [busy, setBusy] = useState('');
+  const [modal, setModal] = useState(null); // 'block' | 'retry' | 'sessions' | 'totp' | 'resetPin'
+  const [retrying, setRetrying] = useState(false);
   const [message, setMessage] = useState(null); // { type: 'success'|'warning'|'error', text }
-  const [showBlockModal, setShowBlockModal] = useState(false);
 
   const isMe = user.auth_user_id === profile?.id;
   const moderationEnabled = Boolean(profile?.features?.authApiModeration);
+  const pinEnforced = Boolean(profile?.features?.adminPin);
 
   if (isMe) {
     return (
@@ -35,34 +39,82 @@ export function UserSecurityActions({ user, onUserChange, lastMethod }) {
     );
   }
 
-  async function run(key, confirmText, action, successText) {
-    if (confirmText && !window.confirm(confirmText)) return;
-    setBusy(key);
-    setMessage(null);
-    try {
-      const res = await action();
-      if (res?.user) onUserChange(res.user);
-      setMessage(res?.warning ? { type: 'warning', text: res.warning } : { type: 'success', text: successText });
-    } catch (err) {
-      setMessage({ type: 'error', text: err.data?.error || err.message });
-    } finally {
-      setBusy('');
-    }
-  }
-
   const blocked = Boolean(user.blocked_at);
   const pending = user.auth_api_pending_action;
+  const id = user.auth_user_id;
 
-  // El motivo lo pide el modal, no window.confirm (ver ReasonModal).
-  async function confirmBlock(reason) {
-    const res = await api.setLocalUserBlocked(user.auth_user_id, !blocked, reason, accessToken);
+  const actions = {
+    block: {
+      title: blocked ? 'Desbloquear cuenta' : 'Bloquear cuenta',
+      description: blocked
+        ? `¿Desbloquear a ${user.email}? Podrá volver a entrar al sistema.`
+        : blockConfirmText(user.email, moderationEnabled),
+      confirmLabel: blocked ? 'Desbloquear' : 'Bloquear',
+      danger: !blocked,
+      askReason: true,
+      call: ({ reason, pin }) => api.setLocalUserBlocked(id, !blocked, reason, pin, accessToken),
+      success: blocked ? 'Cuenta desbloqueada.' : 'Cuenta bloqueada.',
+    },
+    retry: {
+      title: 'Reintentar en el servicio de autenticación',
+      description: `Volver a aplicar ${pending === 'ban' ? 'el bloqueo' : 'el desbloqueo'} de ${user.email} en el servicio de autenticación.`,
+      confirmLabel: 'Reintentar',
+      call: ({ pin }) => api.setLocalUserBlocked(id, pending === 'ban', RETRY_REASON, pin, accessToken),
+      success: 'Aplicado también en el servicio de autenticación.',
+    },
+    sessions: {
+      title: 'Cerrar todas sus sesiones',
+      description: `¿Cerrar todas las sesiones de ${user.email}? Tendrá que volver a iniciar sesión.`,
+      confirmLabel: 'Cerrar sesiones',
+      call: ({ pin }) => api.revokeUserSessions(id, pin, accessToken),
+      success: 'Se cerraron todas sus sesiones.',
+    },
+    totp: {
+      title: 'Desactivar su app autenticadora',
+      description: `¿Desactivar la app autenticadora de ${user.email}? Desde ahora recibirá el código por correo.`,
+      confirmLabel: 'Desactivar app',
+      call: ({ pin }) => api.disableUserTotp(id, pin, accessToken),
+      success: 'App autenticadora desactivada. Ahora recibirá el código por correo.',
+    },
+    resetPin: {
+      title: 'Resetear su PIN',
+      description: `¿Resetear el PIN de ${user.email}? Se cerrarán sus sesiones y se revocarán sus dispositivos de confianza; creará un PIN nuevo al volver a entrar.`,
+      confirmLabel: 'Resetear PIN',
+      call: ({ pin }) => api.resetUserPin(id, pin, accessToken),
+      success: 'PIN reseteado. Creará uno nuevo al volver a entrar.',
+    },
+  };
+
+  // Si falla, lanza el error: el ActionModal lo muestra y se queda abierto.
+  async function confirm(kind, values) {
+    const res = await actions[kind].call(values);
     if (res?.user) onUserChange(res.user);
     setMessage(
-      res?.warning
-        ? { type: 'warning', text: res.warning }
-        : { type: 'success', text: blocked ? 'Cuenta desbloqueada.' : 'Cuenta bloqueada.' }
+      res?.warning ? { type: 'warning', text: res.warning } : { type: 'success', text: actions[kind].success }
     );
-    setShowBlockModal(false);
+    setModal(null);
+  }
+
+  function open(kind) {
+    setMessage(null);
+    setModal(kind);
+  }
+
+  // Sin PIN que pedir, reintentar sale directo, sin diálogo.
+  async function retry() {
+    if (pinEnforced) {
+      open('retry');
+      return;
+    }
+    setMessage(null);
+    setRetrying(true);
+    try {
+      await confirm('retry', {});
+    } catch (err) {
+      setMessage({ type: 'error', text: pinErrorMessage(err) });
+    } finally {
+      setRetrying(false);
+    }
   }
 
   return (
@@ -83,11 +135,7 @@ export function UserSecurityActions({ user, onUserChange, lastMethod }) {
         <button
           type="button"
           className={`table-action ${blocked ? '' : 'table-action--danger'}`}
-          disabled={Boolean(busy)}
-          onClick={() => {
-            setMessage(null);
-            setShowBlockModal(true);
-          }}
+          onClick={() => open('block')}
         >
           {blocked ? 'Desbloquear' : 'Bloquear'}
         </button>
@@ -96,20 +144,8 @@ export function UserSecurityActions({ user, onUserChange, lastMethod }) {
       {pending && (
         <div className="security-action security-action--pending">
           <p className="warning">⚠ {pendingText(pending)}</p>
-          <button
-            type="button"
-            className="table-action"
-            disabled={Boolean(busy)}
-            onClick={() =>
-              run(
-                'retry',
-                null,
-                () => api.setLocalUserBlocked(user.auth_user_id, pending === 'ban', RETRY_REASON, accessToken),
-                'Aplicado también en el servicio de autenticación.'
-              )
-            }
-          >
-            {busy === 'retry' ? 'Reintentando...' : 'Reintentar'}
+          <button type="button" className="table-action" disabled={retrying} onClick={retry}>
+            {retrying ? 'Reintentando...' : 'Reintentar'}
           </button>
         </div>
       )}
@@ -124,20 +160,8 @@ export function UserSecurityActions({ user, onUserChange, lastMethod }) {
                 sospechas que alguien más la está usando.
               </p>
             </div>
-            <button
-              type="button"
-              className="table-action"
-              disabled={Boolean(busy)}
-              onClick={() =>
-                run(
-                  'sessions',
-                  `¿Cerrar todas las sesiones de ${user.email}? Tendrá que volver a iniciar sesión.`,
-                  () => api.revokeUserSessions(user.auth_user_id, accessToken),
-                  'Se cerraron todas sus sesiones.'
-                )
-              }
-            >
-              {busy === 'sessions' ? 'Cerrando...' : 'Cerrar sesiones'}
+            <button type="button" className="table-action" onClick={() => open('sessions')}>
+              Cerrar sesiones
             </button>
           </div>
 
@@ -150,45 +174,46 @@ export function UserSecurityActions({ user, onUserChange, lastMethod }) {
                 {lastMethod === 'otp' && ' Su último inicio de sesión fue con código por correo.'}
               </p>
             </div>
-            <button
-              type="button"
-              className="table-action"
-              disabled={Boolean(busy)}
-              onClick={() =>
-                run(
-                  'totp',
-                  `¿Desactivar la app autenticadora de ${user.email}? Desde ahora recibirá el código por correo.`,
-                  () => api.disableUserTotp(user.auth_user_id, accessToken),
-                  'App autenticadora desactivada. Ahora recibirá el código por correo.'
-                )
-              }
-            >
-              {busy === 'totp' ? 'Desactivando...' : 'Desactivar app'}
+            <button type="button" className="table-action" onClick={() => open('totp')}>
+              Desactivar app
             </button>
           </div>
+
+          {pinEnforced && (
+            <div className="security-action">
+              <div>
+                <strong>Resetear su PIN</strong>
+                <p className="muted">
+                  Para quien olvidó su PIN: se cierran sus sesiones y dispositivos de confianza, y
+                  crea uno nuevo al volver a entrar.
+                </p>
+              </div>
+              <button type="button" className="table-action" onClick={() => open('resetPin')}>
+                Resetear PIN
+              </button>
+            </div>
+          )}
         </>
       ) : (
         <p className="muted">
-          Cerrar sus sesiones o desactivar su app autenticadora requiere la credencial de
-          administración del servicio de autenticación (AUTH_API_SYSTEM_ADMIN_TOKEN), que no está
-          configurada en el backend.
+          Cerrar sus sesiones, desactivar su app autenticadora o resetear su PIN requiere la
+          credencial de administración del servicio de autenticación (AUTH_API_SYSTEM_ADMIN_TOKEN),
+          que no está configurada en el backend.
         </p>
       )}
 
       {message && <p className={message.type}>{message.text}</p>}
 
-      {showBlockModal && (
-        <ReasonModal
-          title={blocked ? 'Desbloquear cuenta' : 'Bloquear cuenta'}
-          description={
-            blocked
-              ? `¿Desbloquear a ${user.email}? Podrá volver a entrar al sistema.`
-              : blockConfirmText(user.email, moderationEnabled)
-          }
-          confirmLabel={blocked ? 'Desbloquear' : 'Bloquear'}
-          danger={!blocked}
-          onConfirm={confirmBlock}
-          onCancel={() => setShowBlockModal(false)}
+      {modal && (
+        <ActionModal
+          title={actions[modal].title}
+          description={actions[modal].description}
+          confirmLabel={actions[modal].confirmLabel}
+          danger={actions[modal].danger}
+          askReason={Boolean(actions[modal].askReason)}
+          askPin={pinEnforced}
+          onConfirm={(values) => confirm(modal, values)}
+          onCancel={() => setModal(null)}
         />
       )}
     </div>

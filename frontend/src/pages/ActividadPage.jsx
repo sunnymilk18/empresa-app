@@ -15,6 +15,9 @@ const ACTION_LABELS = {
   totp_disabled_by_admin: 'App autenticadora desactivada (por un admin)',
   totp_enabled: 'App autenticadora activada',
   totp_disabled: 'App autenticadora desactivada (por la propia cuenta)',
+  pin_reset: 'PIN reseteado (por un admin)',
+  pin_set: 'PIN creado',
+  pin_changed: 'PIN cambiado',
 };
 
 function formatDate(value) {
@@ -58,7 +61,7 @@ function authApiNote(result) {
   }
 }
 
-// El motivo que se le pide a quien bloquea o cambia un rol (ver ReasonModal).
+// El motivo que se le pide a quien bloquea o cambia un rol (ver ActionModal).
 // Los registros de antes de esta función no lo traen: no se agrega nada. Uno
 // largo se corta en la tabla, con un enlace para verlo completo en un modal
 // (onShowReason) — así no rompe el ancho de la fila.
@@ -121,11 +124,17 @@ function describe(entry, onShowReason) {
       return <>cerró todas las sesiones de <strong>{target}</strong></>;
     case 'totp_disabled_by_admin':
       return <>desactivó la app autenticadora de <strong>{target}</strong></>;
+    case 'pin_reset':
+      return <>reseteó el PIN de <strong>{target}</strong></>;
     // Acciones de la persona sobre su propia cuenta.
     case 'totp_enabled':
       return <>activó la app autenticadora en su cuenta</>;
     case 'totp_disabled':
       return <>desactivó la app autenticadora (vuelve al código por correo)</>;
+    case 'pin_set':
+      return <>creó su PIN</>;
+    case 'pin_changed':
+      return <>cambió su PIN</>;
     default:
       return <>{entry.action} ({target})</>;
   }

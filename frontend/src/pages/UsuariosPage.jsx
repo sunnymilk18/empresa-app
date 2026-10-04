@@ -5,7 +5,8 @@ import { useAuth } from '../auth/AuthContext';
 import { formatRut } from '../utils/rut';
 import { formatIp } from '../utils/ip';
 import { blockConfirmText, pendingText } from '../utils/moderation';
-import { ReasonModal } from '../components/ReasonModal';
+import { pinErrorMessage } from '../utils/pin';
+import { ActionModal } from '../components/ActionModal';
 
 const ROLES = ['superadmin', 'admin', 'user'];
 
@@ -47,10 +48,12 @@ export function UsuariosPage() {
   const [savingId, setSavingId] = useState(null);
   // Aviso cuando un bloqueo se aplicó aquí pero no en la auth-api.
   const [warning, setWarning] = useState('');
-  // Usuario/rol pendiente de confirmar con motivo (ver ReasonModal).
+  // Usuario/rol pendiente de confirmar con motivo y/o PIN (ver ActionModal).
   const [blockModalUser, setBlockModalUser] = useState(null);
+  const [retryModalUser, setRetryModalUser] = useState(null);
   const [roleModal, setRoleModal] = useState(null); // { user, role }
   const moderationEnabled = Boolean(profile?.features?.authApiModeration);
+  const pinEnforced = Boolean(profile?.features?.adminPin);
 
   // Siempre la URL más reciente. La búsqueda se aplica con retraso desde un
   // timer creado en un render anterior; si partiera de los parámetros de ese
@@ -116,7 +119,8 @@ export function UsuariosPage() {
   const lastShown = Math.min(page * pageSize, total);
   const lastPage = Math.max(Math.ceil(total / pageSize), 1);
 
-  // Aplica un cambio sobre un usuario y reemplaza su fila con la respuesta.
+  // Aplica un cambio sobre un usuario y reemplaza su fila con la respuesta. Si
+  // falla, lanza el error: los diálogos lo muestran y se quedan abiertos.
   async function updateUser(authUserId, action) {
     setError('');
     setWarning('');
@@ -125,46 +129,52 @@ export function UsuariosPage() {
       const res = await action();
       setUsers((prev) => prev.map((u) => (u.auth_user_id === authUserId ? res.user : u)));
       if (res.warning) setWarning(`${res.user.email}: ${res.warning}`);
-    } catch (err) {
-      setError(err.data?.error || err.message);
     } finally {
       setSavingId(null);
     }
   }
 
-  // El motivo lo pide el modal, no se aplica al elegir la opción (ver render
-  // del <select> más abajo).
+  // El motivo (y el PIN) los pide el diálogo, no se aplica al elegir la opción
+  // (ver render del <select> más abajo).
   function requestRoleChange(user, role) {
     if (role === user.role) return;
     setRoleModal({ user, role });
   }
 
-  async function confirmRoleChange(reason) {
+  async function confirmRoleChange({ reason, pin }) {
     const { user, role } = roleModal;
-    await updateUser(user.auth_user_id, () => api.setLocalUserRole(user.auth_user_id, role, reason, accessToken));
+    await updateUser(user.auth_user_id, () =>
+      api.setLocalUserRole(user.auth_user_id, role, reason, pin, accessToken)
+    );
     setRoleModal(null);
   }
 
-  function toggleBlocked(user) {
-    setBlockModalUser(user);
-  }
-
-  async function confirmBlockToggle(reason) {
+  async function confirmBlockToggle({ reason, pin }) {
     const user = blockModalUser;
-    const blocked = !user.blocked_at;
     await updateUser(user.auth_user_id, () =>
-      api.setLocalUserBlocked(user.auth_user_id, blocked, reason, accessToken)
+      api.setLocalUserBlocked(user.auth_user_id, !user.blocked_at, reason, pin, accessToken)
     );
     setBlockModalUser(null);
   }
 
   // Reintenta en la auth-api el ban/unban que quedó pendiente (repite la
   // misma acción: el backend solo rehace la parte que faltaba). No es una
-  // decisión nueva, así que no pide motivo (ver RETRY_REASON).
+  // decisión nueva, así que no pide motivo (ver RETRY_REASON); pide el PIN
+  // solo si el servidor lo exige, y si no, sale directo.
+  const retryCall = (user, pin) => () =>
+    api.setLocalUserBlocked(user.auth_user_id, user.auth_api_pending_action === 'ban', RETRY_REASON, pin, accessToken);
+
   function retryPending(user) {
-    updateUser(user.auth_user_id, () =>
-      api.setLocalUserBlocked(user.auth_user_id, user.auth_api_pending_action === 'ban', RETRY_REASON, accessToken)
-    );
+    if (pinEnforced) {
+      setRetryModalUser(user);
+      return;
+    }
+    updateUser(user.auth_user_id, retryCall(user)).catch((err) => setError(pinErrorMessage(err)));
+  }
+
+  async function confirmRetry({ pin }) {
+    await updateUser(retryModalUser.auth_user_id, retryCall(retryModalUser, pin));
+    setRetryModalUser(null);
   }
 
   return (
@@ -281,7 +291,7 @@ export function UsuariosPage() {
                         <button
                           className={`table-action ${u.blocked_at ? '' : 'table-action--danger'}`}
                           disabled={savingId === u.auth_user_id}
-                          onClick={() => toggleBlocked(u)}
+                          onClick={() => setBlockModalUser(u)}
                         >
                           {u.blocked_at ? 'Desbloquear' : 'Bloquear'}
                         </button>
@@ -321,7 +331,7 @@ export function UsuariosPage() {
       )}
 
       {blockModalUser && (
-        <ReasonModal
+        <ActionModal
           title={blockModalUser.blocked_at ? 'Desbloquear cuenta' : 'Bloquear cuenta'}
           description={
             blockModalUser.blocked_at
@@ -330,18 +340,32 @@ export function UsuariosPage() {
           }
           confirmLabel={blockModalUser.blocked_at ? 'Desbloquear' : 'Bloquear'}
           danger={!blockModalUser.blocked_at}
+          askPin={pinEnforced}
           onConfirm={confirmBlockToggle}
           onCancel={() => setBlockModalUser(null)}
         />
       )}
 
       {roleModal && (
-        <ReasonModal
+        <ActionModal
           title="Cambiar rol"
           description={`¿Cambiar el rol de ${roleModal.user.email} de "${roleModal.user.role}" a "${roleModal.role}"?`}
           confirmLabel="Cambiar rol"
+          askPin={pinEnforced}
           onConfirm={confirmRoleChange}
           onCancel={() => setRoleModal(null)}
+        />
+      )}
+
+      {retryModalUser && (
+        <ActionModal
+          title="Reintentar en el servicio de autenticación"
+          description={pendingText(retryModalUser.auth_api_pending_action)}
+          confirmLabel="Reintentar"
+          askReason={false}
+          askPin
+          onConfirm={confirmRetry}
+          onCancel={() => setRetryModalUser(null)}
         />
       )}
     </div>

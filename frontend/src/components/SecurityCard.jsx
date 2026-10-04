@@ -2,18 +2,23 @@ import { useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { TotpSetup } from './TotpSetup';
+import { PinSetupModal } from './PinSetupModal';
 
 // Segundo factor de la propia cuenta: activar o desactivar la app
 // autenticadora. Sirve para cualquier rol y para cuentas que ya pasaron su
-// primer login (donde se elige el método).
+// primer login (donde se elige el método). Un superadmin con PIN (cuando el
+// servidor lo exige, features.adminPin) también puede cambiarlo desde aquí.
 export function SecurityCard() {
   const { accessToken, profile, reloadProfile } = useAuth();
   const [settingUp, setSettingUp] = useState(false);
   const [disabling, setDisabling] = useState(false);
+  const [changingPin, setChangingPin] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
   const usesApp = Boolean(profile?.totp_enabled);
+  const canChangePin =
+    profile?.role === 'superadmin' && profile.features?.adminPin && profile.pin_set === true;
 
   async function onEnabled() {
     await reloadProfile();
@@ -86,6 +91,32 @@ export function SecurityCard() {
             Activar app autenticadora
           </button>
         </>
+      )}
+
+      {canChangePin && (
+        <button
+          type="button"
+          className="table-action"
+          style={{ marginTop: 16 }}
+          onClick={() => {
+            setError('');
+            setNotice('');
+            setChangingPin(true);
+          }}
+        >
+          Cambiar PIN
+        </button>
+      )}
+
+      {changingPin && (
+        <PinSetupModal
+          mode="change"
+          onDone={() => {
+            setChangingPin(false);
+            setNotice('PIN cambiado.');
+          }}
+          onCancel={() => setChangingPin(false)}
+        />
       )}
     </div>
   );

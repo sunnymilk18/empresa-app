@@ -154,11 +154,12 @@ export const api = {
     const query = params.toString();
     return request(`/api/local-users${query ? `?${query}` : ''}`, { token });
   },
-  // reason: obligatorio, queda en Actividad (ver ReasonModal).
-  setLocalUserRole: (authUserId, role, reason, token) =>
+  // reason: obligatorio, queda en Actividad. pin: solo si el servidor lo exige
+  // (features.adminPin); undefined no viaja. Ver ActionModal.
+  setLocalUserRole: (authUserId, role, reason, pin, token) =>
     request(`/api/local-users/${encodeURIComponent(authUserId)}/role`, {
       method: 'PUT',
-      body: { role, reason },
+      body: { role, reason, pin },
       token,
     }),
   getUserLogins: (authUserId, token, before) =>
@@ -187,16 +188,35 @@ export const api = {
     return request(`/api/audit-log${query ? `?${query}` : ''}`, { token });
   },
   // Moderación en la auth-api (requiere AUTH_API_SYSTEM_ADMIN_TOKEN en el backend)
-  revokeUserSessions: (authUserId, token) =>
-    request(`/api/local-users/${encodeURIComponent(authUserId)}/revoke-sessions`, { method: 'POST', token }),
-  disableUserTotp: (authUserId, token) =>
-    request(`/api/local-users/${encodeURIComponent(authUserId)}/disable-totp`, { method: 'POST', token }),
-  // reason: obligatorio, queda en Actividad (ver ReasonModal). Devuelve
-  // { user, authApi, warning? }: `warning` si no se pudo aplicar en la auth-api.
-  setLocalUserBlocked: (authUserId, blocked, reason, token) =>
-    request(`/api/local-users/${encodeURIComponent(authUserId)}/blocked`, {
-      method: 'PUT',
-      body: { blocked, reason },
+  // pin: solo si el servidor lo exige (features.adminPin).
+  revokeUserSessions: (authUserId, pin, token) =>
+    request(`/api/local-users/${encodeURIComponent(authUserId)}/revoke-sessions`, {
+      method: 'POST',
+      body: { pin },
       token,
     }),
+  disableUserTotp: (authUserId, pin, token) =>
+    request(`/api/local-users/${encodeURIComponent(authUserId)}/disable-totp`, {
+      method: 'POST',
+      body: { pin },
+      token,
+    }),
+  // Borra el PIN de otra persona; ella crea uno nuevo al volver a entrar.
+  resetUserPin: (authUserId, pin, token) =>
+    request(`/api/local-users/${encodeURIComponent(authUserId)}/reset-pin`, {
+      method: 'POST',
+      body: { pin },
+      token,
+    }),
+  // reason: obligatorio, queda en Actividad. Devuelve { user, authApi, warning? }:
+  // `warning` si no se pudo aplicar en la auth-api.
+  setLocalUserBlocked: (authUserId, blocked, reason, pin, token) =>
+    request(`/api/local-users/${encodeURIComponent(authUserId)}/blocked`, {
+      method: 'PUT',
+      body: { blocked, reason, pin },
+      token,
+    }),
+
+  // PIN de la propia cuenta: crear ({ pin }) o cambiar ({ pin, current_pin }).
+  setPin: (payload, token) => request('/api/auth/pin', { method: 'PUT', body: payload, token }),
 };

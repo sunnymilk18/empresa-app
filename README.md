@@ -296,6 +296,14 @@ por defecto para poder desplegar el backend antes que las apps y encenderlo
 cuando ya envíen el PIN. Crear y cambiar el PIN, y el reset por otro superadmin,
 quedan en Actividad (`pin_set`, `pin_changed`, `pin_reset`).
 
+**En la web**, con `features.adminPin` activo: cada acción destructiva se
+confirma en un diálogo que pide el PIN (y el motivo, en bloqueos y cambios de
+rol); un PIN incorrecto deja el diálogo abierto y muestra los intentos que
+quedan. Un superadmin sin PIN ve un aviso obligatorio para crearlo al entrar
+("Crea tu PIN"), y puede cambiarlo desde la tarjeta Seguridad. En el detalle de
+un usuario hay un botón "Resetear PIN". Con la exigencia apagada, la web no
+muestra ningún campo de PIN.
+
 Los tests del middleware corren con `npm test` en `backend/`.
 
 ## Requisitos previos
