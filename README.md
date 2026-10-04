@@ -364,6 +364,16 @@ Queda escuchando en `http://localhost:5173`.
 5. Registra una segunda cuenta y completa su login: aparecerá en
    **Usuarios** como `user`, y podrás cambiarle el rol o bloquearla.
 
+**Fondo animado.** El login tiene un atardecer sobre Alto Hospicio. Al
+iniciar sesión amanece y el día se queda de fondo hasta terminar el segundo
+factor; al cerrar sesión el sol se pone. Dentro del panel, el botón sol/luna
+de la barra superior alterna el cielo entre noche (por defecto) y día; la
+elección se recuerda en el navegador. El saludo del dashboard sigue la hora
+de Chile. Todo se apaga con "reducir movimiento" del sistema. Solo en
+desarrollo, añade `?hora=14` a una dirección (por ejemplo
+`/dashboard?hora=14`) para probar el saludo de otro momento del día
+(`?hora=auto` vuelve a la hora real).
+
 ## Resistencia a fallas
 
 - Si la auth-api **no responde, tarda más de 10 s (configurable con
