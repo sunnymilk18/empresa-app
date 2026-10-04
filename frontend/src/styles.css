@@ -633,6 +633,18 @@ button:disabled { opacity: 0.55; cursor: default; transform: none; box-shadow: n
 .table tbody tr:nth-child(n + 9) { animation-delay: 0.24s; }
 /* Barras de relleno mientras carga una tabla. */
 .skeleton-bar { display: block; width: 70%; height: 14px; border-radius: 6px; background: rgba(255, 255, 255, 0.08); animation: skeleton-pulse 1.4s ease-in-out infinite; }
+/* El relleno aparece sólido desde el primer instante, y el recuadro real que lo reemplaza no repite su entrada. */
+.page--static, .after-skeleton > .page { animation: none; }
+/* Y su contenido se funde (solo opacidad: con desplazamiento aparecería la barra de scroll del recuadro). */
+.after-skeleton > .page > * { animation: fade-in 0.45s ease backwards; }
+.after-skeleton > .page > :nth-child(2) { animation-delay: 0.07s; }
+.after-skeleton > .page > :nth-child(3) { animation-delay: 0.14s; }
+.after-skeleton > .page > :nth-child(n + 4) { animation-delay: 0.21s; }
+/* Esqueleto de página completa (ProtectedRoute mientras se recupera la sesión). */
+.skeleton-rows { display: flex; flex-direction: column; gap: 26px; margin-top: 30px; }
+.skeleton-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 28px; }
+.skeleton-block { display: block; height: 130px; border-radius: var(--radius); background: rgba(255, 255, 255, 0.06); animation: skeleton-pulse 1.4s ease-in-out infinite; }
+@media (max-width: 700px) { .skeleton-grid { grid-template-columns: 1fr; } }
 @keyframes skeleton-pulse { 50% { opacity: 0.4; } }
 
 /* Datos que se leen mal partidos en dos líneas (RUT, fechas, IP). */

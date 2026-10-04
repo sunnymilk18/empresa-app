@@ -4,7 +4,7 @@ import { useDawn } from '../auth/DawnContext';
 import logo from '../assets/logo-muni.png';
 
 export function Navbar() {
-  const { isAuthenticated, profile, logout } = useAuth();
+  const { isAuthenticated, profile, logout, loadingProfile, accessToken } = useAuth();
   const navigate = useNavigate();
   const { setSunset, skyMode, setSkyMode } = useDawn();
 
@@ -18,7 +18,23 @@ export function Navbar() {
     navigate('/login');
   }
 
-  if (!isAuthenticated) return null;
+  if (!isAuthenticated) {
+    // Recargando con sesión guardada: la barra con solo el logo, del mismo alto
+    // que la real, para que no empuje el contenido cuando llegue el perfil.
+    if (loadingProfile && accessToken) {
+      return (
+        <nav className="navbar" aria-hidden="true">
+          <div className="navbar-brand">
+            <img className="navbar-logo" src={logo} alt="" />
+          </div>
+          <div className="navbar-user" style={{ visibility: 'hidden' }}>
+            <button type="button" className="sky-toggle" tabIndex={-1} />
+          </div>
+        </nav>
+      );
+    }
+    return null;
+  }
 
   return (
     <nav className="navbar">

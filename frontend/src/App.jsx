@@ -56,7 +56,7 @@ export default function App() {
               <Route
                 path="/usuarios"
                 element={
-                  <ProtectedRoute roles={['superadmin']}>
+                  <ProtectedRoute roles={['superadmin']} skeleton="list">
                     <UsuariosPage />
                   </ProtectedRoute>
                 }
@@ -72,7 +72,7 @@ export default function App() {
               <Route
                 path="/actividad"
                 element={
-                  <ProtectedRoute roles={['superadmin']}>
+                  <ProtectedRoute roles={['superadmin']} skeleton="list">
                     <ActividadPage />
                   </ProtectedRoute>
                 }
@@ -80,7 +80,7 @@ export default function App() {
               <Route
                 path="/cuentas-registradas"
                 element={
-                  <ProtectedRoute roles={['superadmin']}>
+                  <ProtectedRoute roles={['superadmin']} skeleton="list">
                     <CuentasRegistradasPage />
                   </ProtectedRoute>
                 }
