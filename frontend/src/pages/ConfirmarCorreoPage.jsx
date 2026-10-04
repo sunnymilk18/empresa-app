@@ -31,7 +31,7 @@ export function ConfirmarCorreoPage() {
   }
 
   return (
-    <div className={`auth-card${leaving ? ' is-leaving' : ''}`}>
+    <div className={`auth-card auth-card--tall${leaving ? ' is-leaving' : ''}`}>
       <Link {...linkProps('/login')} className="back-link">← Volver al inicio de sesión</Link>
       <h1>Confirmar correo nuevo</h1>
       <p className="muted">
