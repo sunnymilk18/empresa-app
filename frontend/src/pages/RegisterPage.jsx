@@ -80,7 +80,7 @@ export function RegisterPage() {
             />
           </label>
         </div>
-        {confirm && form.password !== confirm && <p className="error">Las contraseñas no coinciden.</p>}
+        {confirm && form.password !== confirm && <p className="error error--live">Las contraseñas no coinciden.</p>}
         {error && error !== 'Las contraseñas no coinciden.' && <p className="error">{error}</p>}
         <button type="submit" disabled={loading}>
           {loading ? 'Creando...' : 'Registrarme'}

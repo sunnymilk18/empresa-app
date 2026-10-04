@@ -448,6 +448,22 @@ body:has(.auth-sky) .container > .auth-card { animation: auth-card-in 0.7s var(-
   transform: translateX(-120%);
 }
 .auth-card .form button[type="submit"]:hover::after { transform: translateX(120%); transition: transform 0.7s var(--ease); }
+/* Cargando (el botón queda deshabilitado mientras espera la respuesta): un circulito girando junto al texto. */
+.auth-card .form button[type="submit"]:disabled { display: flex; align-items: center; justify-content: center; gap: 10px; opacity: 0.85; }
+.auth-card .form button[type="submit"]:disabled::before {
+  content: ''; width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(27, 18, 6, 0.28); border-top-color: #1b1206;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+/* Error de un formulario: se sacude un instante al aparecer (al reintentar, el error se borra y vuelve a salir, así que se repite). Los avisos "en vivo" (error--live, p. ej. contraseñas distintas) no lo disparan. */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-9px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(3px); }
+}
+.auth-card .form:has(> .error:not(.error--live)) { animation: shake 0.4s ease-in-out; }
 
 @media (max-width: 760px) {
   .auth-panel { grid-template-columns: 1fr; }

@@ -92,7 +92,7 @@ export function ForgotPasswordPage() {
               onChange={(e) => setConfirm(e.target.value)}
             />
           </label>
-          {confirm && newPassword !== confirm && <p className="error">Las contraseñas no coinciden.</p>}
+          {confirm && newPassword !== confirm && <p className="error error--live">Las contraseñas no coinciden.</p>}
           {error && <p className="error">{error}</p>}
           <button type="submit" disabled={loading}>
             {loading ? 'Guardando...' : 'Cambiar contraseña'}
