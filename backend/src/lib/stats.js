@@ -21,24 +21,39 @@ const loginsStmt = db.prepare(`
   WHERE created_at >= NOW() - INTERVAL '7 days'
 `);
 
-const recentLoginsStmt = db.prepare(`
-  SELECT id, auth_user_id, email, result, method, ip, user_agent, created_at
-  FROM login_history
-  ORDER BY id DESC
-  LIMIT 5
+// Inicios de sesión por día de los últimos 7 días (día calendario de Chile,
+// incluido hoy), con los días sin actividad en cero para el gráfico.
+const dailyStmt = db.prepare(`
+  SELECT to_char(d.day, 'YYYY-MM-DD') AS day,
+         COALESCE(s.ok, 0)::int AS ok,
+         COALESCE(s.blocked, 0)::int AS blocked
+  FROM generate_series(
+    (NOW() AT TIME ZONE 'America/Santiago')::date - 6,
+    (NOW() AT TIME ZONE 'America/Santiago')::date,
+    INTERVAL '1 day'
+  ) AS d(day)
+  LEFT JOIN (
+    SELECT (created_at AT TIME ZONE 'America/Santiago')::date AS day,
+           COUNT(*) FILTER (WHERE result = 'success') AS ok,
+           COUNT(*) FILTER (WHERE result = 'blocked') AS blocked
+    FROM login_history
+    WHERE created_at >= NOW() - INTERVAL '8 days'
+    GROUP BY 1
+  ) s ON s.day = d.day::date
+  ORDER BY d.day
 `);
 
 async function getDashboardStats() {
-  const [users, logins, recentLogins] = await Promise.all([
+  const [users, logins, daily] = await Promise.all([
     usersStmt.get(),
     loginsStmt.get(),
-    recentLoginsStmt.all(),
+    dailyStmt.all(),
   ]);
   const { superadmin, admin, user, ...userTotals } = users;
   return {
     users: { ...userTotals, byRole: { superadmin, admin, user } },
     logins,
-    recentLogins,
+    daily,
   };
 }
 
