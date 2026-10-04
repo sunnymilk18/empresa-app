@@ -129,8 +129,8 @@ export function CuentasRegistradasPage() {
                 <th>Email</th>
                 <th>Usuario</th>
                 <th>RUT</th>
-                <th>Correo verificado</th>
-                <th>Segundo factor elegido</th>
+                <th>Verificado</th>
+                <th>Segundo factor</th>
                 <th>Estado</th>
                 <th>Registrada</th>
               </tr>

@@ -16,8 +16,7 @@ const RETRY_REASON = 'Reintento de sincronización con el servicio de autenticac
 // requieren la credencial de administración de la auth-api en el backend
 // (features.authApiModeration). Cada una se confirma en un ActionModal, que
 // pide además el PIN si el servidor lo exige (features.adminPin).
-// `lastMethod`: método de su último inicio de sesión ('otp' | 'totp'), como pista.
-export function UserSecurityActions({ user, onUserChange, lastMethod }) {
+export function UserSecurityActions({ user, onUserChange }) {
   const { accessToken, profile } = useAuth();
   const [modal, setModal] = useState(null); // 'block' | 'retry' | 'sessions' | 'totp' | 'resetPin'
   const [retrying, setRetrying] = useState(false);
@@ -117,20 +116,21 @@ export function UserSecurityActions({ user, onUserChange, lastMethod }) {
     }
   }
 
+  const blockHint = blocked
+    ? 'Vuelve a permitirle entrar.'
+    : moderationEnabled
+      ? 'No podrá entrar y se cerrarán sus sesiones.'
+      : 'No podrá entrar.';
+
   return (
     <div className="card security-actions">
       <h2>Acciones de seguridad</h2>
+      <p className="muted security-hint">Cada acción pide confirmación. Pasa el mouse sobre un botón para ver qué hace.</p>
 
-      <div className="security-action">
+      <div className="security-action" title={blockHint}>
         <div>
           <strong>{blocked ? 'Desbloquear cuenta' : 'Bloquear cuenta'}</strong>
-          <p className="muted">
-            {blocked
-              ? 'Vuelve a permitirle entrar al sistema.'
-              : moderationEnabled
-                ? 'No podrá entrar al sistema y se cerrarán todas sus sesiones.'
-                : 'No podrá entrar al sistema.'}
-          </p>
+          <p className="muted">{blockHint}</p>
         </div>
         <button
           type="button"
@@ -152,12 +152,11 @@ export function UserSecurityActions({ user, onUserChange, lastMethod }) {
 
       {moderationEnabled ? (
         <>
-          <div className="security-action">
+          <div className="security-action" title="Tendrá que volver a iniciar sesión. No bloquea la cuenta.">
             <div>
               <strong>Cerrar todas sus sesiones</strong>
               <p className="muted">
-                Tendrá que volver a iniciar sesión en todos lados. No bloquea la cuenta. Útil si
-                sospechas que alguien más la está usando.
+                Tendrá que volver a iniciar sesión. No bloquea la cuenta.
               </p>
             </div>
             <button type="button" className="table-action" onClick={() => open('sessions')}>
@@ -165,13 +164,11 @@ export function UserSecurityActions({ user, onUserChange, lastMethod }) {
             </button>
           </div>
 
-          <div className="security-action">
+          <div className="security-action" title="Para quien perdió el celular: vuelve al código por correo.">
             <div>
               <strong>Desactivar su app autenticadora</strong>
               <p className="muted">
-                Para quien perdió el celular: vuelve a recibir el código por correo.
-                {lastMethod === 'totp' && ' Su último inicio de sesión fue con app autenticadora.'}
-                {lastMethod === 'otp' && ' Su último inicio de sesión fue con código por correo.'}
+                Para quien perdió el celular: vuelve al código por correo.
               </p>
             </div>
             <button type="button" className="table-action" onClick={() => open('totp')}>
@@ -180,12 +177,11 @@ export function UserSecurityActions({ user, onUserChange, lastMethod }) {
           </div>
 
           {pinEnforced && (
-            <div className="security-action">
+            <div className="security-action" title="Para quien lo olvidó: crea uno nuevo al volver a entrar.">
               <div>
                 <strong>Resetear su PIN</strong>
                 <p className="muted">
-                  Para quien olvidó su PIN: se cierran sus sesiones y dispositivos de confianza, y
-                  crea uno nuevo al volver a entrar.
+                  Para quien lo olvidó: crea uno nuevo al volver a entrar.
                 </p>
               </div>
               <button type="button" className="table-action" onClick={() => open('resetPin')}>

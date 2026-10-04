@@ -3,7 +3,6 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { formatRut } from '../utils/rut';
-import { formatIp } from '../utils/ip';
 import { blockConfirmText, pendingText } from '../utils/moderation';
 import { pinErrorMessage } from '../utils/pin';
 import { ActionModal } from '../components/ActionModal';
@@ -234,7 +233,6 @@ export function UsuariosPage() {
                 <th>RUT</th>
                 <th>Rol</th>
                 <th>Último ingreso</th>
-                <th>Última IP</th>
                 <th>Estado</th>
                 <th></th>
               </tr>
@@ -265,7 +263,6 @@ export function UsuariosPage() {
                       )}
                     </td>
                     <td className="nowrap cell-dim cell-stack">{formatDate(u.last_login_at).split(', ').map((part, i) => <span key={i}>{part}</span>)}</td>
-                    <td className="nowrap muted">{formatIp(u.last_login_ip)}</td>
                     <td>
                       {u.blocked_at ? (
                         <span className="badge badge-blocked" title={`Desde ${formatDate(u.blocked_at)}`}>
