@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import { DawnProvider } from './auth/DawnContext';
@@ -25,6 +26,42 @@ import { UsuarioDetallePage } from './pages/UsuarioDetallePage';
 import { ActividadPage } from './pages/ActividadPage';
 import { CuentasRegistradasPage } from './pages/CuentasRegistradasPage';
 
+function ClickFeedback() {
+  const [pulses, setPulses] = useState([]);
+
+  useEffect(() => {
+    let nextId = 0;
+    const timers = new Map();
+    const onPointerDown = (event) => {
+      if (event.button !== 0 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      const id = nextId++;
+      setPulses((current) => [...current.slice(-2), { id, x: event.clientX, y: event.clientY }]);
+      timers.set(id, window.setTimeout(() => {
+        setPulses((current) => current.filter((pulse) => pulse.id !== id));
+        timers.delete(id);
+      }, 520));
+    };
+
+    window.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown);
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, []);
+
+  return (
+    <div className="click-feedback-layer" aria-hidden="true">
+      {pulses.map((pulse) => (
+        <span
+          className="click-feedback-ring"
+          key={pulse.id}
+          style={{ left: pulse.x, top: pulse.y }}
+        />
+      ))}
+    </div>
+  );
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -37,6 +74,7 @@ export default function App() {
           <SunsetOverlay />
           <Navbar />
           <PinGate />
+          <ClickFeedback />
           <main className="container">
             <Routes>
               <Route path="/register" element={<RegisterPage />} />
