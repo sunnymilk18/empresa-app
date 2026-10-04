@@ -188,24 +188,31 @@ export const api = {
     return request(`/api/audit-log${query ? `?${query}` : ''}`, { token });
   },
   // Moderación en la auth-api (requiere AUTH_API_SYSTEM_ADMIN_TOKEN en el backend)
-  // pin: solo si el servidor lo exige (features.adminPin).
-  revokeUserSessions: (authUserId, pin, token) =>
+  // reason: obligatorio, queda en Actividad. pin: solo si el servidor lo exige (features.adminPin).
+  revokeUserSessions: (authUserId, reason, pin, token) =>
     request(`/api/local-users/${encodeURIComponent(authUserId)}/revoke-sessions`, {
       method: 'POST',
-      body: { pin },
+      body: { reason, pin },
       token,
     }),
-  disableUserTotp: (authUserId, pin, token) =>
+  disableUserTotp: (authUserId, reason, pin, token) =>
     request(`/api/local-users/${encodeURIComponent(authUserId)}/disable-totp`, {
       method: 'POST',
-      body: { pin },
+      body: { reason, pin },
       token,
     }),
   // Borra el PIN de otra persona; ella crea uno nuevo al volver a entrar.
-  resetUserPin: (authUserId, pin, token) =>
+  resetUserPin: (authUserId, reason, pin, token) =>
     request(`/api/local-users/${encodeURIComponent(authUserId)}/reset-pin`, {
       method: 'POST',
-      body: { pin },
+      body: { reason, pin },
+      token,
+    }),
+  // Le manda a la persona el código para restablecer su contraseña (ella la elige).
+  sendUserPasswordReset: (authUserId, reason, pin, token) =>
+    request(`/api/local-users/${encodeURIComponent(authUserId)}/send-password-reset`, {
+      method: 'POST',
+      body: { reason, pin },
       token,
     }),
   // reason: obligatorio, queda en Actividad. Devuelve { user, authApi, warning? }:

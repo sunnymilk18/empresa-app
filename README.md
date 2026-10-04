@@ -236,9 +236,10 @@ enlazados a la cuenta de la auth-api por su id (`sub` del JWT).
 | GET | `/api/local-users?q=&role=&status=&page=&pageSize=` | superadmin | Lista de usuarios con búsqueda, filtros y paginación (20 por página, máx. 100) |
 | PUT | `/api/local-users/:authUserId/role` | superadmin | Cambiar rol |
 | PUT | `/api/local-users/:authUserId/blocked` | superadmin | Bloquear / desbloquear (aquí y en la auth-api; repetirlo reintenta lo pendiente) |
-| POST | `/api/local-users/:authUserId/revoke-sessions` | superadmin | Cerrar todas sus sesiones (requiere `AUTH_API_SYSTEM_ADMIN_TOKEN`) |
-| POST | `/api/local-users/:authUserId/disable-totp` | superadmin | Desactivar su app autenticadora (requiere `AUTH_API_SYSTEM_ADMIN_TOKEN`) |
-| POST | `/api/local-users/:authUserId/reset-pin` | superadmin | Borrar el PIN de otra persona (la auth-api también revoca sus dispositivos y sesiones; crea uno nuevo al volver a entrar). Requiere `AUTH_API_SYSTEM_ADMIN_TOKEN` |
+| POST | `/api/local-users/:authUserId/revoke-sessions` | superadmin | Cerrar todas sus sesiones (requiere `AUTH_API_SYSTEM_ADMIN_TOKEN`) Requiere un motivo (`reason`, queda en Actividad) |
+| POST | `/api/local-users/:authUserId/disable-totp` | superadmin | Desactivar su app autenticadora (requiere `AUTH_API_SYSTEM_ADMIN_TOKEN`) Requiere un motivo (`reason`, queda en Actividad) |
+| POST | `/api/local-users/:authUserId/reset-pin` | superadmin | Borrar el PIN de otra persona (la auth-api también revoca sus dispositivos y sesiones; crea uno nuevo al volver a entrar). Requiere `AUTH_API_SYSTEM_ADMIN_TOKEN` Requiere un motivo (`reason`, queda en Actividad) |
+| POST | `/api/local-users/:authUserId/send-password-reset` | superadmin | Enviarle a la persona el código para restablecer su contraseña (mismo flujo de "¿Olvidaste tu contraseña?"; ella elige la nueva, quien lo pide no la ve). Pide el PIN de administración y queda en Actividad Requiere un motivo (`reason`, queda en Actividad) |
 | PUT | `/api/auth/pin` | con sesión | Crear (`pin`) o cambiar (`pin` + `current_pin`) el PIN de la propia cuenta |
 | GET | `/api/local-users/:authUserId/logins?before=` | superadmin | Datos + historial de inicios de sesión (de a 50) |
 | GET | `/api/audit-log?before=` | superadmin | Registro de actividad (de a 50) |

@@ -65,21 +65,32 @@ export function UserSecurityActions({ user, onUserChange }) {
       title: 'Cerrar todas sus sesiones',
       description: `¿Cerrar todas las sesiones de ${user.email}? Tendrá que volver a iniciar sesión.`,
       confirmLabel: 'Cerrar sesiones',
-      call: ({ pin }) => api.revokeUserSessions(id, pin, accessToken),
+      askReason: true,
+      call: ({ reason, pin }) => api.revokeUserSessions(id, reason, pin, accessToken),
       success: 'Se cerraron todas sus sesiones.',
     },
     totp: {
       title: 'Desactivar su app autenticadora',
       description: `¿Desactivar la app autenticadora de ${user.email}? Desde ahora recibirá el código por correo.`,
       confirmLabel: 'Desactivar TOTP',
-      call: ({ pin }) => api.disableUserTotp(id, pin, accessToken),
+      askReason: true,
+      call: ({ reason, pin }) => api.disableUserTotp(id, reason, pin, accessToken),
       success: 'App autenticadora desactivada. Ahora recibirá el código por correo.',
+    },
+    resetPassword: {
+      title: 'Restablecer su contraseña',
+      description: `¿Enviarle a ${user.email} el código para restablecer su contraseña? Le llegará a su correo y ella elegirá la nueva; tú no la verás.`,
+      confirmLabel: 'Enviar código',
+      askReason: true,
+      call: ({ reason, pin }) => api.sendUserPasswordReset(id, reason, pin, accessToken),
+      success: 'Código enviado a su correo. Ella elegirá su nueva contraseña.',
     },
     resetPin: {
       title: 'Resetear su PIN',
       description: `¿Resetear el PIN de ${user.email}? Se cerrarán sus sesiones y se revocarán sus dispositivos de confianza; creará un PIN nuevo al volver a entrar.`,
       confirmLabel: 'Resetear PIN',
-      call: ({ pin }) => api.resetUserPin(id, pin, accessToken),
+      askReason: true,
+      call: ({ reason, pin }) => api.resetUserPin(id, reason, pin, accessToken),
       success: 'PIN reseteado. Creará uno nuevo al volver a entrar.',
     },
   };
@@ -173,6 +184,19 @@ export function UserSecurityActions({ user, onUserChange }) {
             </div>
             <button type="button" className="table-action" onClick={() => open('totp')}>
               Desactivar TOTP
+            </button>
+          </div>
+
+          <div
+            className="security-action security-action--wide"
+            title="Le llega un código a su correo y ella elige la nueva contraseña; tú no la ves."
+          >
+            <div>
+              <strong>Restablecer su contraseña</strong>
+              <p className="muted">Le llega un código a su correo y ella elige la nueva contraseña; tú no la ves.</p>
+            </div>
+            <button type="button" className="table-action" onClick={() => open('resetPassword')}>
+              Restablecer contraseña
             </button>
           </div>
 

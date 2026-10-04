@@ -7,6 +7,7 @@ const config = require('../config');
 //    auth_api_synced (reintento exitoso de un ban/unban pendiente),
 //    sessions_revoked, totp_disabled_by_admin
 //    pin_reset (resetear el PIN de otra persona)
+//    password_reset_sent (le envió el código para restablecer su contraseña)
 //  - de una persona sobre su propia cuenta: totp_enabled, totp_disabled,
 //    pin_set (creó su PIN), pin_changed (lo cambió)
 // Inserta una fila de auditoría usando la conexión de la transacción en curso,
@@ -34,6 +35,7 @@ const AUDIT_ACTIONS = [
   'totp_enabled',
   'totp_disabled',
   'pin_reset',
+  'password_reset_sent',
   'pin_set',
   'pin_changed',
 ];

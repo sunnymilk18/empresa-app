@@ -8,6 +8,7 @@ const {
   setRole,
   setBlocked,
   runIdentityAction,
+  sendPasswordReset,
 } = require('../lib/localUsers');
 const { listAuditLog, AUDIT_ACTIONS } = require('../lib/audit');
 const { listLoginHistory } = require('../lib/loginHistory');
@@ -158,17 +159,26 @@ const IDENTITY_ACTION_STATUS = { not_found: 404, unauthorized: 502, unavailable:
 // POST /api/local-users/:authUserId/revoke-sessions  (solo superadmin)
 // POST /api/local-users/:authUserId/disable-totp     (solo superadmin)
 // POST /api/local-users/:authUserId/reset-pin        (solo superadmin)
+// POST /api/local-users/:authUserId/send-password-reset (solo superadmin)
 // Cierran todas las sesiones de la persona, le desactivan la app
 // autenticadora (p. ej. perdió el celular) o le borran el PIN (olvidó el
 // suyo: la auth-api también revoca sus dispositivos y sesiones, y crea uno
-// nuevo en su próximo ingreso). No se permiten sobre la propia cuenta: para
+// nuevo en su próximo ingreso) o le mandan el código para restablecer su
+// contraseña (ella la elige; quien lo pide nunca la ve). Todas requieren un
+// motivo (queda en Actividad, ver requiredReason). No se permiten sobre la propia cuenta: para
 // eso están "Salir", la tarjeta Seguridad y PUT /api/auth/pin.
-for (const action of ['revoke-sessions', 'disable-totp', 'reset-pin']) {
+for (const action of ['revoke-sessions', 'disable-totp', 'reset-pin', 'send-password-reset']) {
   router.post(`/local-users/:authUserId/${action}`, requireAuth, requireRole('superadmin'), requireAdminPin, asyncHandler(async (req, res) => {
     if (req.params.authUserId === req.authUser.id) {
       return res.status(400).json({ error: 'Esta acción no se puede usar sobre tu propia cuenta' });
     }
-    const result = await runIdentityAction(req.params.authUserId, action, actorOf(req));
+    const reason = requiredReason(req.body);
+    if (!reason) {
+      return res.status(400).json({ error: `El motivo es obligatorio (máx. ${REASON_MAX_LENGTH} caracteres)` });
+    }
+    const result = action === 'send-password-reset'
+      ? await sendPasswordReset(req.params.authUserId, actorOf(req), reason)
+      : await runIdentityAction(req.params.authUserId, action, actorOf(req), reason);
     if (!result) return res.status(404).json({ error: 'Usuario no encontrado' });
     if (result.authApi !== 'ok') {
       return res

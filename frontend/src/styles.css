@@ -578,7 +578,8 @@ button:disabled { opacity: 0.55; cursor: default; transform: none; box-shadow: n
 
 /* Acciones de seguridad en el detalle de un usuario: cuadrícula 2x2 de botones. La explicación de cada una va en el title de su celda, así la tarjeta queda baja y la tabla de abajo gana espacio. */
 .security-actions { margin-top: 24px; max-width: 720px; display: grid; grid-template-columns: 1fr 1fr; grid-auto-flow: dense; column-gap: 12px; }
-.security-actions > h2, .security-actions > p, .security-actions > .security-action--pending { grid-column: 1 / -1; }
+.security-actions > h2, .security-actions > p, .security-actions > .security-action--wide { grid-column: 1 / -1; }
+.security-action--pending { grid-column: 1 / -1; }
 .security-hint { margin: 0 0 8px; font-size: var(--fs-xs); }
 .security-action { display: block; padding: 4px 0; }
 .security-action > div:first-child { display: none; }

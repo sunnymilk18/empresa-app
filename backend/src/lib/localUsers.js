@@ -1,6 +1,6 @@
 const db = require('../db');
 const { logAction } = require('./audit');
-const { systemAdminAction } = require('./authApi');
+const { systemAdminAction, callAuthApi } = require('./authApi');
 
 const ROLES = ['superadmin', 'admin', 'user'];
 
@@ -170,14 +170,14 @@ async function setBlocked(authUserId, blocked, actor, reason) {
 // Acciones solo de la auth-api sobre la cuenta de otra persona:
 // 'revoke-sessions' (cerrar todas sus sesiones) o 'disable-totp' (desactivar
 // su app autenticadora, p. ej. si perdió el celular). No cambian nada local;
-// se registran en la actividad solo si la auth-api las aplicó.
+// se registran en la actividad (con su motivo) solo si la auth-api las aplicó.
 // Devuelve { user, authApi } o null si el usuario no existe.
 const IDENTITY_ACTION_AUDIT = {
   'revoke-sessions': 'sessions_revoked',
   'disable-totp': 'totp_disabled_by_admin',
   'reset-pin': 'pin_reset',
 };
-async function runIdentityAction(authUserId, action, actor) {
+async function runIdentityAction(authUserId, action, actor, reason) {
   return db.transaction(async (query) => {
     await waitAdminTurn(query);
     const { rows } = await query('SELECT * FROM local_users WHERE auth_user_id = $1', [authUserId]);
@@ -186,7 +186,32 @@ async function runIdentityAction(authUserId, action, actor) {
     await checkAdminChange(query, actor, user, false);
 
     const authApi = await systemAdminAction(authUserId, action);
-    if (authApi === 'ok') await logAction(query, actor, IDENTITY_ACTION_AUDIT[action], user);
+    if (authApi === 'ok') await logAction(query, actor, IDENTITY_ACTION_AUDIT[action], user, { reason });
+    return { user, authApi };
+  });
+}
+
+// Le envía a la persona el código para restablecer su contraseña: el mismo
+// flujo de "¿Olvidaste tu contraseña?", pedido por un superadmin. El código
+// llega al correo de la persona; quien lo pide no ve ni elige la contraseña.
+// Se registra en la actividad solo si la auth-api aceptó el pedido.
+// Devuelve { user, authApi: 'ok' | 'unavailable' } o null si el usuario no existe.
+async function sendPasswordReset(authUserId, actor, reason) {
+  return db.transaction(async (query) => {
+    await waitAdminTurn(query);
+    const { rows } = await query('SELECT * FROM local_users WHERE auth_user_id = $1', [authUserId]);
+    const user = rows[0];
+    if (!user) return null;
+    await checkAdminChange(query, actor, user, false);
+
+    let authApi;
+    try {
+      const res = await callAuthApi('/auth/password-reset/request', { body: { email: user.email } });
+      authApi = res.status >= 200 && res.status < 300 ? 'ok' : 'unavailable';
+    } catch {
+      authApi = 'unavailable';
+    }
+    if (authApi === 'ok') await logAction(query, actor, 'password_reset_sent', user, { reason });
     return { user, authApi };
   });
 }
@@ -269,5 +294,6 @@ module.exports = {
   setRole,
   setBlocked,
   runIdentityAction,
+  sendPasswordReset,
   listLocalUsers,
 };
