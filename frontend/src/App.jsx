@@ -6,6 +6,7 @@ import { AppSky } from './components/AppSky';
 import { DawnBackdrop } from './components/DawnBackdrop';
 import { Navbar } from './components/Navbar';
 import { PinGate } from './components/PinGate';
+import { StandaloneScene } from './components/StandaloneScene';
 import { StarField } from './components/StarField';
 import { SunsetOverlay } from './components/SunsetOverlay';
 import { RegisterPage } from './pages/RegisterPage';
@@ -29,6 +30,7 @@ export default function App() {
         <DawnProvider>
           <AppSky />
           <StarField />
+          <StandaloneScene />
           <DawnBackdrop />
           <SunsetOverlay />
           <Navbar />

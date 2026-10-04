@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api';
+import { useLeave } from '../utils/useLeave';
 import { useAuth } from '../auth/AuthContext';
 import { useDawn } from '../auth/DawnContext';
-import { CityScene } from '../components/CityScene';
 import { FallingText } from '../components/FallingText';
 import logo from '../assets/logo-muni.png';
 
@@ -11,6 +11,7 @@ const ICON_PROPS = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', 
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const { leaving, linkProps } = useLeave();
   const { state } = useLocation();
   const { sessionNotice } = useAuth();
   const [identifier, setIdentifier] = useState('');
@@ -54,7 +55,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="auth-shell">
+    <div className={`auth-shell${leaving ? ' is-leaving' : ''}`}>
       <div className="auth-panel">
         <div className="auth-brand-panel">
           <img className="auth-logo" src={logo} alt="Municipalidad de Alto Hospicio" />
@@ -70,7 +71,6 @@ export function LoginPage() {
           </ul>
         </div>
 
-        <CityScene />
         <div className="auth-card auth-card--welcome">
           <h2>Inicia sesión</h2>
           <p className="auth-subtitle">Rellene los campos para iniciar sesión</p>
@@ -119,6 +119,8 @@ export function LoginPage() {
               </span>
             </label>
 
+            <Link {...linkProps('/forgot-password')} className="auth-forgot">¿Olvidaste tu contraseña?</Link>
+
             {error && <p className="error">{error}</p>}
 
             <button type="submit" disabled={loading}>
@@ -126,14 +128,8 @@ export function LoginPage() {
             </button>
           </form>
 
-          <div className="auth-links">
-            <p className="muted">
-              ¿No tienes cuenta? <Link to="/register">Regístrate</Link>
-            </p>
-            <p className="muted">
-              <Link to="/forgot-password">¿Olvidaste tu contraseña?</Link>
-            </p>
-          </div>
+          <div className="auth-or"><span>¿No tienes cuenta?</span></div>
+          <Link {...linkProps('/register')} className="auth-secondary">Crear cuenta</Link>
         </div>
       </div>
     </div>

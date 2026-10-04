@@ -16,6 +16,15 @@ function formatDate(value) {
     : '—';
 }
 
+// Última respuesta por página y búsqueda: al volver a la pestaña se muestra al
+// instante y se actualiza por detrás (la lista sale de la auth-api, que está
+// en otro servidor y tarda más que la base local).
+const cache = new Map();
+
+// Filas de relleno mientras llega la primera respuesta, para que el recuadro
+// tenga su forma desde el principio.
+const SKELETON_ROWS = 6;
+
 // Todas las cuentas registradas en la auth-api para este sistema, incluidas
 // las que nunca completaron su primer login (por eso no aparecen en
 // Usuarios: esa lista es solo quienes ya usaron el panel alguna vez).
@@ -28,9 +37,10 @@ export function CuentasRegistradasPage() {
   const q = searchParams.get('q') || '';
 
   const [search, setSearch] = useState(q);
-  const [users, setUsers] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [pageSize, setPageSize] = useState(50);
+  const first = cache.get(`${page}|${q}`);
+  const [users, setUsers] = useState(first?.users ?? []);
+  const [total, setTotal] = useState(first?.total ?? 0);
+  const [pageSize, setPageSize] = useState(first?.pageSize ?? 50);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -51,11 +61,19 @@ export function CuentasRegistradasPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const key = `${page}|${q}`;
+    const hit = cache.get(key);
+    if (hit) {
+      setUsers(hit.users);
+      setTotal(hit.total);
+      setPageSize(hit.pageSize);
+    }
     setLoading(true);
     setError('');
     api
       .listAuthUsers(accessToken, { page, q })
       .then((res) => {
+        cache.set(key, { users: res.users, total: res.total, pageSize: res.page_size });
         if (cancelled) return;
         setUsers(res.users);
         setTotal(res.total);
@@ -116,7 +134,30 @@ export function CuentasRegistradasPage() {
       {error && <p className="error">{error}</p>}
 
       {loading && users.length === 0 ? (
-        <p>Cargando...</p>
+        <div className="table-wrap" aria-busy="true">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Usuario</th>
+                <th>RUT</th>
+                <th>Verificado</th>
+                <th>Segundo factor</th>
+                <th>Estado</th>
+                <th>Registrada</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: SKELETON_ROWS }, (_, i) => (
+                <tr key={i}>
+                  {Array.from({ length: 7 }, (_, j) => (
+                    <td key={j}><span className="skeleton-bar" /></td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : users.length === 0 && !error ? (
         <p className="muted">
           {q ? 'Ninguna cuenta coincide con la búsqueda.' : 'Todavía no hay cuentas registradas.'}

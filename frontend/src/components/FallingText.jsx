@@ -1,8 +1,8 @@
 import { Fragment } from 'react';
 
 // Texto cuyas letras caen una tras otra (estilos: .fall-letter en styles.css).
-// Los lectores de pantalla leen el texto normal; las letras sueltas se ocultan.
-export function FallingText({ text }) {
+// `delay` (ms) retrasa la primera letra. Los lectores de pantalla leen el texto normal; las letras sueltas se ocultan.
+export function FallingText({ text, delay = 0 }) {
   let offset = 0;
   return (
     <>
@@ -15,7 +15,7 @@ export function FallingText({ text }) {
             {w > 0 && ' '}
             <span className="fall-word" aria-hidden="true">
               {[...word].map((ch, k) => (
-                <span key={k} className="fall-letter" style={{ '--i': start + k }}>{ch}</span>
+                <span key={k} className="fall-letter" style={{ '--i': start + k, '--d': `${delay}ms` }}>{ch}</span>
               ))}
             </span>
           </Fragment>

@@ -3,6 +3,46 @@ import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth/AuthContext';
 
+// Entrada tras el login: los números cuentan desde 0 y las barras crecen cuando
+// el recuadro ya apareció (INTRO_MS después de montarse, ver .page--intro).
+const INTRO_MS = 1100;
+const COUNT_MS = 800;
+
+function useReadyAfter(delay) {
+  const [ready, setReady] = useState(delay <= 0);
+  useEffect(() => {
+    if (delay <= 0) return undefined;
+    const timer = setTimeout(() => setReady(true), delay);
+    return () => clearTimeout(timer);
+  }, [delay]);
+  return ready;
+}
+
+// Un número que sube de 0 a `value` (con `animate`); antes de `ready` muestra 0.
+function CountUp({ value, animate, ready }) {
+  const [shown, setShown] = useState(animate ? 0 : value);
+  useEffect(() => {
+    if (!animate) {
+      setShown(value);
+      return undefined;
+    }
+    if (!ready) {
+      setShown(0);
+      return undefined;
+    }
+    const start = performance.now();
+    let frame;
+    const tick = (now) => {
+      const t = Math.min((now - start) / COUNT_MS, 1);
+      setShown(Math.round(value * (1 - (1 - t) ** 3)));
+      if (t < 1) frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [value, animate, ready]);
+  return shown;
+}
+
 // Un indicador de la franja. Con `to`, es un enlace (p. ej. a Usuarios filtrado).
 // `alert` lo pinta de rojo (solo cuando el número es motivo de atención).
 function Kpi({ label, value, hint, to, alert = false }) {
@@ -19,7 +59,7 @@ function Kpi({ label, value, hint, to, alert = false }) {
 
 // Barras de los inicios de sesión de los últimos 7 días: exitosos y, apilados
 // encima, los bloqueados.
-function DailyChart({ daily }) {
+function DailyChart({ daily, hidden }) {
   const max = Math.max(1, ...daily.map((d) => d.ok + d.blocked));
   return (
     <div className="daily">
@@ -34,9 +74,9 @@ function DailyChart({ daily }) {
           const date = new Date(`${d.day}T12:00:00`);
           const label = `${date.toLocaleDateString('es-CL', { weekday: 'short' }).replace('.', '')} ${date.getDate()}`;
           return (
-            <div key={d.day} className="daily-col" title={`${label}: ${d.ok} exitosos, ${d.blocked} bloqueados`}>
+            <div key={d.day} className="daily-col" style={{ '--i': daily.indexOf(d) }} title={`${label}: ${d.ok} exitosos, ${d.blocked} bloqueados`}>
               <span className="daily-total">{d.ok + d.blocked || ''}</span>
-              <div className="daily-stack" style={{ height: `${((d.ok + d.blocked) / max) * 100}%` }}>
+              <div className={`daily-stack${hidden ? ' daily-stack--pre' : ''}`} style={{ height: `${((d.ok + d.blocked) / max) * 100}%` }}>
                 {d.blocked > 0 && <span className="daily-seg daily-seg--blocked" style={{ flex: d.blocked }} />}
                 {d.ok > 0 && <span className="daily-seg daily-seg--ok" style={{ flex: d.ok }} />}
               </div>
@@ -51,7 +91,7 @@ function DailyChart({ daily }) {
 
 // Resumen del sistema para el superadmin: usuarios y accesos de los últimos
 // 7 días.
-export function AdminSummary() {
+export function AdminSummary({ intro = false }) {
   const { accessToken } = useAuth();
   const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
@@ -65,9 +105,15 @@ export function AdminSummary() {
   }, []);
 
   if (error) return <p className="error">No se pudo cargar el resumen: {error}</p>;
-  if (!stats) return <p className="muted">Cargando resumen...</p>;
 
-  const { users, logins, daily } = stats;
+  // Mientras carga se dibuja el mismo esqueleto con "–": así el recuadro no
+  // cambia de forma cuando llegan los datos.
+  const users = stats?.users;
+  const logins = stats?.logins;
+  const dash = '–';
+  const animate = intro && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const ready = useReadyAfter(animate ? INTRO_MS : 0);
+  const n = (v) => (v == null ? dash : <CountUp value={v} animate={animate} ready={ready} />);
 
   return (
     <section className="summary">
@@ -75,14 +121,14 @@ export function AdminSummary() {
 
       <div className="summary-grid">
         <div className="kpi-strip">
-          <Kpi label="Usuarios" value={users.total} to="/usuarios" />
-          <Kpi label="Entraron" value={users.active_last_7d} hint="últimos 7 días" />
-          <Kpi label="Nuevos" value={users.new_last_7d} hint="últimos 7 días" />
-          <Kpi label="Bloqueados" value={users.blocked} to="/usuarios?status=blocked" alert={users.blocked > 0} />
-          <Kpi label="Inicios de sesión" value={logins.success_last_7d} hint="últimos 7 días" />
-          <Kpi label="Intentos bloqueados" value={logins.blocked_last_7d} hint="últimos 7 días" alert={logins.blocked_last_7d > 0} />
+          <Kpi label="Usuarios" value={n(users?.total)} to="/usuarios" />
+          <Kpi label="Entraron" value={n(users?.active_last_7d)} hint="últimos 7 días" />
+          <Kpi label="Nuevos" value={n(users?.new_last_7d)} hint="últimos 7 días" />
+          <Kpi label="Bloqueados" value={n(users?.blocked)} to="/usuarios?status=blocked" alert={users?.blocked > 0} />
+          <Kpi label="Inicios de sesión" value={n(logins?.success_last_7d)} hint="últimos 7 días" />
+          <Kpi label="Intentos bloqueados" value={n(logins?.blocked_last_7d)} hint="últimos 7 días" alert={logins?.blocked_last_7d > 0} />
         </div>
-        <DailyChart daily={daily} />
+        <DailyChart daily={stats?.daily || []} hidden={animate && !ready} />
       </div>
     </section>
   );

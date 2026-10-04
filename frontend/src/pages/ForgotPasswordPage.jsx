@@ -1,16 +1,18 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { api } from '../api';
+import { useLeave } from '../utils/useLeave';
 
 // Flujo de 2 pasos, igual al de la auth-api:
 //   1. pedir el código (la respuesta es la misma exista o no la cuenta)
 //   2. confirmar con el código + la nueva contraseña
 export function ForgotPasswordPage() {
-  const navigate = useNavigate();
+  const { leaving, leaveTo, linkProps } = useLeave();
   const [step, setStep] = useState(1);
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,10 +35,11 @@ export function ForgotPasswordPage() {
   async function onConfirm(e) {
     e.preventDefault();
     setError('');
+    if (newPassword !== confirm) return; // el aviso ya se muestra bajo el campo
     setLoading(true);
     try {
       await api.confirmPasswordReset({ email, code, new_password: newPassword });
-      navigate('/login', { state: { passwordReset: true } });
+      leaveTo('/login', { state: { passwordReset: true } });
     } catch (err) {
       setError(err.data?.error || err.message);
     } finally {
@@ -45,7 +48,7 @@ export function ForgotPasswordPage() {
   }
 
   return (
-    <div className="auth-card">
+    <div className={`auth-card${leaving ? ' is-leaving' : ''}`}>
       <h1>Recuperar contraseña</h1>
 
       {step === 1 && (
@@ -79,6 +82,17 @@ export function ForgotPasswordPage() {
               onChange={(e) => setNewPassword(e.target.value)}
             />
           </label>
+          <label>
+            Confirmar nueva contraseña
+            <input
+              type="password"
+              required
+              minLength={8}
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+            />
+          </label>
+          {confirm && newPassword !== confirm && <p className="error">Las contraseñas no coinciden.</p>}
           {error && <p className="error">{error}</p>}
           <button type="submit" disabled={loading}>
             {loading ? 'Guardando...' : 'Cambiar contraseña'}
@@ -87,7 +101,7 @@ export function ForgotPasswordPage() {
       )}
 
       <p className="muted">
-        <Link to="/login">Volver a inicio de sesión</Link>
+        <Link {...linkProps('/login')}>Volver a inicio de sesión</Link>
       </p>
     </div>
   );

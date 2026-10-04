@@ -71,7 +71,7 @@ export function UserSecurityActions({ user, onUserChange }) {
     totp: {
       title: 'Desactivar su app autenticadora',
       description: `¿Desactivar la app autenticadora de ${user.email}? Desde ahora recibirá el código por correo.`,
-      confirmLabel: 'Desactivar app',
+      confirmLabel: 'Desactivar TOTP',
       call: ({ pin }) => api.disableUserTotp(id, pin, accessToken),
       success: 'App autenticadora desactivada. Ahora recibirá el código por correo.',
     },
@@ -172,7 +172,7 @@ export function UserSecurityActions({ user, onUserChange }) {
               </p>
             </div>
             <button type="button" className="table-action" onClick={() => open('totp')}>
-              Desactivar app
+              Desactivar TOTP
             </button>
           </div>
 
