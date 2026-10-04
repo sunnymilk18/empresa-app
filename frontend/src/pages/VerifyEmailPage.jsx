@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { api } from '../api';
+import { useLeave } from '../utils/useLeave';
 
 export function VerifyEmailPage() {
   const { state } = useLocation();
   const navigate = useNavigate();
+  const { leaving, linkProps } = useLeave();
   const [email, setEmail] = useState(state?.email || '');
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
@@ -37,7 +39,8 @@ export function VerifyEmailPage() {
   }
 
   return (
-    <div className="auth-card">
+    <div className={`auth-card${leaving ? ' is-leaving' : ''}`}>
+      <Link {...linkProps('/login')} className="back-link">← Volver al inicio de sesión</Link>
       <h1>Confirma tu correo</h1>
       <p className="muted">
         Te enviamos un código de 6 dígitos por email. Ingrésalo para poder iniciar sesión.
@@ -60,9 +63,6 @@ export function VerifyEmailPage() {
       <button type="button" className="link-button" onClick={onResend}>
         Reenviar código
       </button>
-      <p className="muted">
-        <Link to="/login">Volver a inicio de sesión</Link>
-      </p>
     </div>
   );
 }

@@ -86,9 +86,8 @@ export function RegisterPage() {
           {loading ? 'Creando...' : 'Registrarme'}
         </button>
       </form>
-      <p className="muted">
-        ¿Ya tienes cuenta? <Link {...linkProps('/login')}>Inicia sesión</Link>
-      </p>
+      <div className="auth-or"><span>¿Ya tienes cuenta?</span></div>
+      <Link {...linkProps('/login')} className="auth-secondary">Iniciar sesión</Link>
     </div>
   );
 }

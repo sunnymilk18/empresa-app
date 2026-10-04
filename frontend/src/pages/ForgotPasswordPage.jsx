@@ -49,6 +49,7 @@ export function ForgotPasswordPage() {
 
   return (
     <div className={`auth-card${leaving ? ' is-leaving' : ''}`}>
+      <Link {...linkProps('/login')} className="back-link">← Volver al inicio de sesión</Link>
       <h1>Recuperar contraseña</h1>
 
       {step === 1 && (
@@ -100,9 +101,6 @@ export function ForgotPasswordPage() {
         </form>
       )}
 
-      <p className="muted">
-        <Link {...linkProps('/login')}>Volver a inicio de sesión</Link>
-      </p>
     </div>
   );
 }
