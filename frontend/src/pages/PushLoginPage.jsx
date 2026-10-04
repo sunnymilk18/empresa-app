@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../api';
-import { useAuth } from '../auth/AuthContext';
+import { useAfterLogin } from '../auth/useAfterLogin';
 
 // Se llega aquí solo cuando /auth/login respondió push_approval_offered=true:
 // la cuenta ya tiene un celular emparejado (app auth-2fa-app) con la
@@ -12,7 +12,7 @@ import { useAuth } from '../auth/AuthContext';
 export function PushLoginPage() {
   const { state } = useLocation();
   const navigate = useNavigate();
-  const { completeLogin } = useAuth();
+  const afterLogin = useAfterLogin();
   const [number, setNumber] = useState(null);
   // pending | rejected | expired
   const [status, setStatus] = useState('pending');
@@ -33,8 +33,7 @@ export function PushLoginPage() {
         setNumber(res.number);
         if (res.status === 'approved') {
           stoppedRef.current = true;
-          await completeLogin(res);
-          navigate('/dashboard');
+          await afterLogin(res);
         } else if (res.status === 'rejected') {
           stoppedRef.current = true;
           setStatus('rejected');

@@ -14,6 +14,7 @@ import { ConfirmarCorreoPage } from './pages/ConfirmarCorreoPage';
 import { VerifyEmailPage } from './pages/VerifyEmailPage';
 import { LoginPage } from './pages/LoginPage';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage';
+import { PinLoginPage } from './pages/PinLoginPage';
 import { VerifyOtpPage } from './pages/VerifyOtpPage';
 import { PushLoginPage } from './pages/PushLoginPage';
 import { ElegirMetodoPage } from './pages/ElegirMetodoPage';
@@ -44,6 +45,7 @@ export default function App() {
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/confirmar-correo" element={<ConfirmarCorreoPage />} />
               <Route path="/verify-otp" element={<VerifyOtpPage />} />
+              <Route path="/pin-login" element={<PinLoginPage />} />
               <Route path="/aprobar-celular" element={<PushLoginPage />} />
               <Route path="/elegir-metodo" element={<ElegirMetodoPage />} />
               <Route path="/configurar-app" element={<ConfigurarAppPage />} />

@@ -101,6 +101,32 @@ async function systemAdminChangeEmail(authUserId, newEmail) {
   return 'unavailable';
 }
 
+// Enciende o apaga en la auth-api el PIN obligatorio al final del login de una
+// cuenta (PUT /system-admin/users/{id}/login-pin-required). No revoca sesiones:
+// solo afecta los logins siguientes. Nunca lanza; devuelve lo mismo que
+// systemAdminAction.
+async function systemAdminSetLoginPin(authUserId, required) {
+  if (!config.authApiSystemAdminToken) return 'disabled';
+  let res;
+  try {
+    res = await authApiFetch(`/system-admin/users/${encodeURIComponent(authUserId)}/login-pin-required`, {
+      method: 'PUT',
+      headers: {
+        'X-System-Admin-Token': config.authApiSystemAdminToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ required }),
+    });
+  } catch {
+    return 'unavailable';
+  }
+  await res.text().catch(() => {}); // libera la conexión; el cuerpo no se usa
+  if (res.status === 204 || res.ok) return 'ok';
+  if (res.status === 404) return 'not_found';
+  if (res.status === 401) return 'unauthorized';
+  return 'unavailable';
+}
+
 // Lista las cuentas registradas en la auth-api para este sistema (todas,
 // incluidas las que nunca completaron su primer login y por eso no aparecen
 // en /api/local-users) — requiere la misma credencial de administración por
@@ -150,6 +176,7 @@ module.exports = {
   callAuthApi,
   systemAdminAction,
   systemAdminChangeEmail,
+  systemAdminSetLoginPin,
   systemAdminListUsers,
   SYSTEM_ADMIN_MESSAGES,
 };

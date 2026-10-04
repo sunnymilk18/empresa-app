@@ -57,6 +57,12 @@ const config = {
   // lib/adminPin.js). Apagado por defecto: se enciende cuando las apps ya lo
   // envían.
   adminPinEnforced: process.env.ADMIN_PIN_ENFORCED === 'true',
+  // PIN obligatorio como último paso del login de los superadmin (después de la
+  // contraseña y del segundo factor). Es un interruptor por cuenta en la
+  // auth-api; con esto encendido, el backend lo activa en cada superadmin (al
+  // loguear o al darle el rol) y lo apaga al quitárselo. Apagado por defecto:
+  // enciéndelo cuando el frontend con la pantalla de PIN ya esté desplegado.
+  adminLoginPinEnforced: process.env.ADMIN_LOGIN_PIN === 'true',
   appTimezone: timezone('APP_TIMEZONE', 'America/Santiago'),
   // Limpieza automática de registros antiguos (ver lib/retention.js).
   loginHistoryRetentionDays: retentionDays('LOGIN_HISTORY_RETENTION_DAYS', 365),

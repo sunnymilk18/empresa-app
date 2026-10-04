@@ -5,7 +5,7 @@ const { requireAuth } = require('../middleware/auth');
 const { recordLogin } = require('../lib/localUsers');
 const { BLOCKED_RESPONSE } = require('../lib/blocked');
 const { recordLoginEvent } = require('../lib/loginHistory');
-const { authApiFetch, callAuthApi } = require('../lib/authApi');
+const { authApiFetch, callAuthApi, systemAdminSetLoginPin } = require('../lib/authApi');
 const { logAction } = require('../lib/audit');
 const asyncHandler = require('../lib/asyncHandler');
 const db = require('../db');
@@ -131,6 +131,12 @@ async function finishLogin(req, res, upstream, blockedExtra = {}) {
   if (localUser) {
     await logLoginEvent(req, localUser, synced.method, localUser.blocked_at ? 'blocked' : 'success');
   }
+  // Los superadmin llevan el PIN obligatorio al login: se deja activado en la
+  // auth-api (idempotente, sin esperar). Así cubre también a quien ya lo era
+  // antes de encender esto y al primer superadmin del sistema.
+  if (config.adminLoginPinEnforced && localUser?.role === 'superadmin' && !localUser.blocked_at) {
+    systemAdminSetLoginPin(localUser.auth_user_id, true).catch(() => {});
+  }
   if (localUser?.blocked_at) {
     await callAuthApi('/auth/logout', {
       body: { refresh_token: upstream.data.refresh_token },
@@ -194,6 +200,19 @@ router.post('/send-email-code', asyncHandler(async (req, res) => {
 router.post('/verify-otp', asyncHandler(async (req, res) => {
   const { login_token, code } = req.body;
   const upstream = await callAuthApi('/auth/verify-otp', { body: { login_token, code } });
+  await finishLogin(req, res, upstream);
+}));
+
+// POST /api/auth/login/pin  ->  POST /auth/login/pin
+// Último paso del login de las cuentas con el PIN obligatorio: verify-otp,
+// totp/confirm y push-status responden { pin_required, pin_token, pin_set } en
+// vez de tokens (el finishLogin los deja pasar tal cual, sin sesión), y aquí se
+// completa con { pin_token, pin } (más create:true si pin_set era false: el PIN
+// se crea en ese mismo paso). Es el login real: entrega los tokens, así que
+// pasa por finishLogin (cuenta bloqueada, historial y cookie del refresh).
+router.post('/login/pin', asyncHandler(async (req, res) => {
+  const { pin_token, pin, create } = req.body;
+  const upstream = await callAuthApi('/auth/login/pin', { body: { pin_token, pin, create } });
   await finishLogin(req, res, upstream);
 }));
 

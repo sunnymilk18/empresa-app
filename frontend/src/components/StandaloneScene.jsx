@@ -9,7 +9,7 @@ import { CityScene } from './CityScene';
 // navegador tras volver al login) son estas las que dan el fondo.
 const PATHS = [
   '/login', '/register', '/verify-email', '/forgot-password', '/confirmar-correo',
-  '/verify-otp', '/aprobar-celular', '/elegir-metodo', '/configurar-app',
+  '/verify-otp', '/aprobar-celular', '/elegir-metodo', '/configurar-app', '/pin-login',
 ];
 
 export function StandaloneScene() {

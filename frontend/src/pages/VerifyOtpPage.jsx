@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { api } from '../api';
-import { useAuth } from '../auth/AuthContext';
+import { useAfterLogin } from '../auth/useAfterLogin';
 
 export function VerifyOtpPage() {
   const { state } = useLocation();
-  const navigate = useNavigate();
-  const { completeLogin } = useAuth();
+  const afterLogin = useAfterLogin();
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -26,8 +25,7 @@ export function VerifyOtpPage() {
     setLoading(true);
     try {
       const tokens = await api.verifyOtp({ login_token: state.loginToken, code });
-      await completeLogin(tokens);
-      navigate('/dashboard');
+      await afterLogin(tokens);
     } catch (err) {
       setError(err.data?.error || err.message);
     } finally {

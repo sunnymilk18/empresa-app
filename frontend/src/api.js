@@ -117,6 +117,8 @@ export const api = {
   sendEmailCode: (payload) =>
     request('/api/auth/send-email-code', { method: 'POST', body: payload }),
   verifyOtp: (payload) => request('/api/auth/verify-otp', { method: 'POST', body: payload }),
+  // Último paso del login con PIN obligatorio: { pin_token, pin, create? } -> tokens.
+  loginPin: (payload) => request('/api/auth/login/pin', { method: 'POST', body: payload }),
   resendCode: (payload) => request('/api/auth/resend-code', { method: 'POST', body: payload }),
 
   // Aprobación de login por notificación push (celular ya emparejado).

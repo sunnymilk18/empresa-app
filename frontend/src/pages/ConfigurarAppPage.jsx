@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api';
-import { useAuth } from '../auth/AuthContext';
+import { useAfterLogin } from '../auth/useAfterLogin';
 import { TotpSetup } from '../components/TotpSetup';
 
 // Primer login eligiendo la app autenticadora: QR + primer código. Al
@@ -9,15 +9,14 @@ import { TotpSetup } from '../components/TotpSetup';
 export function ConfigurarAppPage() {
   const { state } = useLocation();
   const navigate = useNavigate();
-  const { completeLogin } = useAuth();
+  const afterLogin = useAfterLogin();
   const [error, setError] = useState('');
   const [switching, setSwitching] = useState(false);
 
   if (!state?.loginToken) return <Navigate to="/login" replace />;
 
   async function onConfirmed(tokens) {
-    await completeLogin(tokens);
-    navigate('/dashboard');
+    await afterLogin(tokens);
   }
 
   // Arrepentirse: el mismo login_token sirve para elegir correo, mientras no

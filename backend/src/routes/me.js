@@ -15,7 +15,7 @@ const { listAuditLog, AUDIT_ACTIONS } = require('../lib/audit');
 const { listLoginHistory } = require('../lib/loginHistory');
 const { requireAdminPin } = require('../lib/adminPin');
 const { getDashboardStats } = require('../lib/stats');
-const { authApiFetch, systemAdminListUsers, SYSTEM_ADMIN_MESSAGES } = require('../lib/authApi');
+const { authApiFetch, systemAdminListUsers, systemAdminSetLoginPin, SYSTEM_ADMIN_MESSAGES } = require('../lib/authApi');
 const asyncHandler = require('../lib/asyncHandler');
 
 const router = express.Router();
@@ -121,6 +121,11 @@ router.put('/local-users/:authUserId/role', requireAuth, requireRole('superadmin
   }
   const updated = await setRole(req.params.authUserId, role, actorOf(req), reason);
   if (!updated) return res.status(404).json({ error: 'Usuario no encontrado' });
+  // El PIN obligatorio al login sigue al rol: se enciende al darle superadmin y
+  // se apaga al quitárselo (si falla, se reajusta en su próximo login de superadmin).
+  if (config.adminLoginPinEnforced) {
+    systemAdminSetLoginPin(updated.auth_user_id, updated.role === 'superadmin').catch(() => {});
+  }
   res.json({ user: updated });
 }));
 
