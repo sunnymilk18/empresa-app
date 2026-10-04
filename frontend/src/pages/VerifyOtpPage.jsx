@@ -14,9 +14,10 @@ export function VerifyOtpPage() {
 
   if (!state?.loginToken) return <Navigate to="/login" replace />;
 
-  // Si la persona recién eligió correo, sabemos que el código va por correo.
-  // En los demás logins la auth-api no avisa qué método usa la cuenta.
+  // method viene de la auth-api ('totp' o 'email'); si no llega, el texto queda
+  // genérico (sirve para ambos).
   const byEmail = state.method === 'email';
+  const byApp = state.method === 'totp';
 
   async function onSubmit(e) {
     e.preventDefault();
@@ -52,9 +53,9 @@ export function VerifyOtpPage() {
     <div className="auth-card">
       <h1>Código de verificación</h1>
       <p className="muted">
-        {byEmail
-          ? 'Ingresa el código de 6 dígitos que te llegó por correo.'
-          : 'Ingresa el código de 6 dígitos de tu app autenticadora o el que te llegó por correo.'}
+        {byEmail && 'Te enviamos un código de 6 dígitos a tu correo. Ingrésalo para continuar.'}
+        {byApp && 'Abre tu app autenticadora e ingresa el código de 6 dígitos.'}
+        {!byEmail && !byApp && 'Ingresa el código de 6 dígitos de tu app autenticadora o el que te llegó por correo.'}
       </p>
       <form onSubmit={onSubmit} className="form">
         <label>
@@ -74,9 +75,11 @@ export function VerifyOtpPage() {
           {loading ? 'Verificando...' : 'Verificar e ingresar'}
         </button>
       </form>
-      <button type="button" className="link-button" style={{ marginTop: 14 }} onClick={resend} disabled={resending}>
-        {resending ? 'Enviando...' : '¿No te llegó? Reenviar código por correo'}
-      </button>
+      {!byApp && (
+        <button type="button" className="link-button" style={{ marginTop: 14 }} onClick={resend} disabled={resending}>
+          {resending ? 'Enviando...' : '¿No te llegó? Reenviar código por correo'}
+        </button>
+      )}
     </div>
   );
 }

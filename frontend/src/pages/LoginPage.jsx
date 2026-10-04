@@ -49,7 +49,7 @@ export function LoginPage() {
         // espera la aprobación en vez de pedir el código por correo.
         navigate('/aprobar-celular', { state: { loginToken: res.login_token } });
       } else {
-        navigate('/verify-otp', { state: { loginToken: res.login_token } });
+        navigate('/verify-otp', { state: { loginToken: res.login_token, method: res.method } });
       }
     } catch (err) {
       setError(err.data?.error || err.message);
