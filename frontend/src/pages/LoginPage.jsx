@@ -1,7 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth/AuthContext';
+import { useDawn } from '../auth/DawnContext';
+import { CityScene } from '../components/CityScene';
+import { FallingText } from '../components/FallingText';
+import logo from '../assets/logo-muni.png';
+
+const ICON_PROPS = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true };
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -9,15 +15,25 @@ export function LoginPage() {
   const { sessionNotice } = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  // Al iniciar sesión bien, amanece (ver DawnBackdrop) antes de cambiar de pantalla,
+  // y el día se queda de fondo en las pantallas del segundo factor.
+  const { setDawn } = useDawn();
+  useEffect(() => setDawn(false), [setDawn]); // volver a /login apaga el día
 
   async function onSubmit(e) {
     e.preventDefault();
+    if (loading) return; // la espera del amanecer deja una ventana para un segundo Enter
     setError('');
     setLoading(true);
     try {
       const res = await api.login({ identifier, password });
+      setDawn(true);
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      }
       // needs_2fa_setup: true solo pasa en el primer login de la cuenta (si
       // el servidor ofrece más de un método): la persona elige su segundo
       // factor antes de pedir un código.
@@ -41,21 +57,21 @@ export function LoginPage() {
     <div className="auth-shell">
       <div className="auth-panel">
         <div className="auth-brand-panel">
-          <div className="auth-brand-mark">E</div>
-          <p className="auth-brand-kicker">Plataforma empresarial</p>
-          <h1>Bienvenido a la Empresa</h1>
+          <img className="auth-logo" src={logo} alt="Municipalidad de Alto Hospicio" />
+          <p className="auth-brand-kicker">Acceso institucional</p>
+          <h1><FallingText text="Bienvenido al panel municipal" /></h1>
           <p className="auth-brand-copy">
-            Gestiona usuarios, permisos y operaciones con una experiencia segura y moderna.
+            Gestiona usuarios, permisos y accesos de forma segura.
           </p>
           <ul className="auth-points">
-            <li>Acceso seguro</li>
-            <li>Gestión centralizada</li>
-            <li>Operación ágil</li>
+            <li>Verificación en dos pasos</li>
+            <li>Registro de cada acción</li>
+            <li>Solo personal autorizado</li>
           </ul>
         </div>
 
+        <CityScene />
         <div className="auth-card auth-card--welcome">
-          <div className="auth-badge">Acceso</div>
           <h2>Inicia sesión</h2>
           <p className="auth-subtitle">Rellene los campos para iniciar sesión</p>
 
@@ -65,16 +81,42 @@ export function LoginPage() {
           <form onSubmit={onSubmit} className="form">
             <label>
               Email, usuario o RUT
-              <input required value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
+              <span className="field-box">
+                <svg {...ICON_PROPS}><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7" /></svg>
+                <input
+                  required
+                  autoComplete="username"
+                  placeholder="nombre@correo.cl o 12.345.678-9"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                />
+              </span>
             </label>
             <label>
               Contraseña
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <span className="field-box">
+                <svg {...ICON_PROPS}><rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 018 0v4" /></svg>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  autoComplete="current-password"
+                  placeholder="Tu contraseña"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="field-eye"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                >
+                  <svg {...ICON_PROPS}>
+                    <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+                    <circle cx="12" cy="12" r="3" />
+                    {showPassword && <path d="M4 4l16 16" />}
+                  </svg>
+                </button>
+              </span>
             </label>
 
             {error && <p className="error">{error}</p>}

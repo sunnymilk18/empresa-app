@@ -1,15 +1,39 @@
+/* Tema oscuro morado. Todo el color sale de estas variables.
+   Ojo: .page y .card NO llevan backdrop-filter ni transform al pasar el mouse,
+   porque algunos modales (position: fixed) viven dentro de ellos y ambas cosas
+   harían que el modal se midiera contra la tarjeta en vez de la pantalla. */
 :root {
-  --bg: #0f172a;
-  --surface: #ffffff;
-  --surface-alt: #f8fafc;
-  --border: #e2e8f0;
-  --text: #0f172a;
-  --muted: #64748b;
-  --primary: #4f46e5;
-  --primary-dark: #4338ca;
-  --success: #16a34a;
-  --danger: #dc2626;
-  --radius: 10px;
+  --bg: #0a1130;
+  --bg-deep: #060b20;
+  --surface: rgba(10, 18, 52, 0.98);
+  --surface-alt: rgba(255, 255, 255, 0.06);
+  --border: rgba(110, 140, 255, 0.2);
+  --border-strong: rgba(140, 170, 255, 0.45);
+  --text: #e3e8f4; /* blanco frío suave: el crema de antes desentonaba con el azul marino */
+  --dim: #93a0bf;  /* datos secundarios de las tablas (fechas, IP...) */
+  --muted: #b8bdd0;
+  --primary: #2f55d4;
+  --primary-dark: #2442b0;
+  --accent: #7ea6ff;
+  --gold: #fcb40c;
+  --success: #86efac;
+  --danger: #ff7a62;
+  --danger-solid: #d92d12;
+  --warning: #fcd34d;
+  --radius: 14px;
+  --glow: 126, 166, 255; /* luz que sigue al cursor sobre las tarjetas: azul pálido (luna) de noche; blanco cálido (sol) de día, ver body[data-phase="day"] */
+  --page-w: 1340px; /* ancho estándar del recuadro principal de todas las pestañas */
+  --page-h: 930px; /* alto estándar del recuadro principal de todas las pestañas */
+  /* Escala de letra: nada por debajo de 14px. Todo el CSS usa solo estos tamaños. */
+  --fs-xs: 1rem;   /* 14px: etiquetas, insignias, pistas */
+  --fs-sm: 1.125rem;       /* 16px: texto secundario, tablas, formularios, botones chicos */
+  --fs-md: 1.0850rem;  /* 17px: texto base y campos */
+  --fs-lg: 1.1999rem;  /* 19px: subtítulos y títulos de tarjeta */
+  --fs-xl: 1.750rem;   /* 26px: título de página */
+  --fs-num: 1.999rem;  /* 30px: cifras del resumen */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --font: 'Nunito Sans', 'Segoe UI', system-ui, sans-serif;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -19,292 +43,464 @@ html { min-height: 100%; }
 body {
   margin: 0;
   min-height: 100vh;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: var(--font);
   background:
-    radial-gradient(circle at top left, rgba(99, 102, 241, 0.18), transparent 28%),
-    radial-gradient(circle at bottom right, rgba(14, 165, 233, 0.16), transparent 26%),
-    linear-gradient(135deg, #eef2ff 0%, #f8fafc 40%, #e2e8f0 100%);
+    radial-gradient(circle at 12% 8%, rgba(47, 85, 212, 0.3), transparent 32%),
+    radial-gradient(circle at 90% 92%, rgba(252, 180, 12, 0.08), transparent 30%),
+    radial-gradient(circle at 80% 20%, rgba(60, 100, 230, 0.18), transparent 28%),
+    var(--bg);
   background-attachment: fixed;
   color: var(--text);
-  font-size: 16px;
+  font-size: var(--fs-md);
 }
 
-.container { max-width: 1180px; margin: 0 auto; padding: 18px 20px 28px; }
+a { color: var(--accent); }
+a:hover { color: #b6ccff; }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+/* Estrellas y constelaciones de fondo (components/StarField.jsx) */
+.starfield { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; transition: opacity 1.4s ease; }
+/* En el login las estrellas son el cielo de la noche: solo arriba, y se apagan al amanecer. */
+body:has(.auth-shell) .starfield {
+  mask-image: linear-gradient(to bottom, #000 0, #000 28%, transparent 62%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 28%, transparent 62%);
+}
+body:has(.auth-sky) .starfield { opacity: 0; }
+.navbar, .container, .auth-shell { position: relative; z-index: 1; }
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes drop-letter {
+  0% { opacity: 0; transform: translateY(-1.1em); }
+  55% { opacity: 1; }
+  82% { transform: translateY(0.07em); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 18px rgba(126, 166, 255, 0.25); }
+  50% { box-shadow: 0 0 34px rgba(126, 166, 255, 0.55); }
+}
+
+/* Título con letras que caen (components/FallingText.jsx) */
+.fall-word { display: inline-block; white-space: nowrap; }
+.fall-letter { display: inline-block; animation: drop-letter 0.6s var(--ease) backwards; animation-delay: calc(var(--i) * 30ms); }
+
+/* #root es una columna del alto de la ventana: así el login ocupa lo que queda bajo la barra superior (si hay sesión) sin generar scroll. */
+#root { min-height: 100vh; display: flex; flex-direction: column; }
+.container { width: 100%; max-width: calc(var(--page-w) + 40px); margin: 0 auto; padding: 18px 20px 28px; } /* --page-w + el relleno de los lados: lo bastante para la tabla de Usuarios sin scroll */
+/* El login va de borde a borde: sin el ancho máximo ni los márgenes del resto de las páginas. */
+.container:has(> .auth-shell) { flex: 1; display: flex; flex-direction: column; max-width: none; padding: 0; z-index: auto; }
 
 .navbar {
   display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
-  gap: 12px 24px; padding: 14px 28px; background: var(--bg); color: white;
+  gap: 12px 24px; padding: 14px 28px; color: var(--text);
+  background: rgba(8, 14, 40, 0.6); border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
 }
-.navbar-brand { font-weight: 700; letter-spacing: 0.02em; }
+.navbar-brand { display: flex; align-items: center; }
+.navbar-logo { display: block; height: 38px; width: auto; }
 .navbar-links { display: flex; gap: 20px; }
-.navbar-links a { color: #cbd5e1; text-decoration: none; font-size: 0.95rem; }
-.navbar-links a:hover { color: white; }
-.navbar-user { display: flex; align-items: center; gap: 12px; font-size: 0.9rem; white-space: nowrap; }
+.navbar-links a { position: relative; color: var(--muted); text-decoration: none; font-size: var(--fs-md); transition: color 0.3s var(--ease); }
+.navbar-links a::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: -4px; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  transform: scaleX(0); transform-origin: left; transition: transform 0.35s var(--ease);
+}
+.navbar-links a:hover { color: var(--text); }
+.navbar-links a:hover::after { transform: scaleX(1); }
+.navbar-user { display: flex; align-items: center; gap: 12px; font-size: var(--fs-sm); white-space: nowrap; }
 .navbar-user .link-button {
-  margin: 0; color: #cbd5e1; text-decoration: none; box-shadow: none; transform: none;
-  border: 1px solid rgba(203, 213, 225, 0.35); border-radius: 8px; padding: 5px 12px;
+  margin: 0; color: var(--muted); text-decoration: none; box-shadow: none; transform: none;
+  border: 1px solid var(--border); border-radius: 8px; padding: 5px 12px;
 }
-.navbar-user .link-button:hover { color: white; background: rgba(255, 255, 255, 0.08); }
+.navbar-user .link-button:hover { color: var(--text); background: rgba(126, 166, 255, 0.12); }
 
-.auth-shell {
-  min-height: calc(100vh - 80px);
-  display: grid;
-  place-items: center;
-  padding: 24px 18px 28px;
-  background:
-    linear-gradient(135deg, rgba(79, 70, 229, 0.12), rgba(14, 165, 233, 0.06) 35%, rgba(15, 23, 42, 0.04) 100%),
-    linear-gradient(135deg, #eef2ff 0%, #f8fafc 40%, #e2e8f0 100%);
+/* Botón sol/luna: cambia el cielo del panel entre noche y día. */
+.sky-toggle {
+  margin: 0; width: 36px; height: 36px; padding: 0; display: grid; place-items: center; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06); border: 1px solid var(--border); box-shadow: none; color: var(--gold);
 }
+.sky-toggle:hover { transform: none; box-shadow: none; filter: none; background: rgba(252, 180, 12, 0.14); border-color: var(--gold); }
+.sky-toggle svg { animation: toggle-in 0.5s var(--ease); }
+@keyframes toggle-in { from { opacity: 0; transform: rotate(-80deg) scale(0.5); } }
+
+/* Login y registro */
+/* El login ocupa toda la página: dos columnas a pantalla completa, sin recuadro. */
+.auth-shell { flex: 1; display: flex; flex-direction: column; z-index: auto; } /* sin z-index propio, el logo y el fondo del amanecer se ordenan entre sí */
 
 .auth-panel {
-  width: min(1040px, 100%);
-  min-height: 700px;
-  display: grid;
-  grid-template-columns: 1.15fr 0.85fr;
-  background: rgba(255,255,255,0.72);
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  border-radius: 30px;
-  overflow: hidden;
-  box-shadow: 0 28px 70px rgba(15, 23, 42, 0.12);
+  --scene-h: clamp(170px, 17.5vw, 400px); /* alto del paisaje: crece con el ancho para no deformarlo */
+  flex: 1; overflow: hidden;
+  display: grid; grid-template-columns: 1.15fr 0.85fr;
+  animation: fade-in 0.8s ease backwards;
+}
+
+/* Luz del amanecer (dentro de .dawn-backdrop): nace cerca del horizonte y crece hasta cubrir el cielo; queda debajo del paisaje para no lavarlo. */
+.auth-dawn {
+  position: absolute; left: 40%; top: 80%; z-index: 0; width: 180%; aspect-ratio: 1; border-radius: 50%;
+  pointer-events: none; mix-blend-mode: screen;
+  background: radial-gradient(circle, rgba(252, 226, 80, 0.5) 0%, rgba(248, 190, 30, 0.24) 28%, rgba(248, 168, 8, 0.08) 50%, transparent 68%);
+  transform: translate(-50%, -50%);
+  animation: dawn-glow 2s cubic-bezier(0.3, 0.7, 0.3, 1) backwards;
+}
+@keyframes dawn-glow {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.1); }
 }
 
 .auth-brand-panel {
-  padding: 64px 52px;
-  background: linear-gradient(160deg, #111827 0%, #1f2937 32%, #312e81 100%);
-  color: #f8fafc;
+  position: relative; overflow: hidden; color: var(--text);
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 40px clamp(32px, 6vw, 96px) calc(var(--scene-h) + 24px);
+}
+/* El fondo azul va aparte para poder desvanecerlo hacia la columna del formulario. */
+.auth-brand-panel::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(160deg, rgba(47, 85, 212, 0.42) 0%, rgba(31, 43, 93, 0.5) 45%, rgba(8, 14, 40, 0.25) 100%);
+  mask-image: linear-gradient(to right, #000 65%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to right, #000 65%, transparent 100%);
+}
+.auth-brand-panel > * { position: relative; }
+
+/* Fondo del amanecer (components/DawnBackdrop.jsx): cubre toda la pantalla y sobrevive al cambio de ruta. En /login queda sobre el formulario (lo tapa); en las demás pantallas queda detrás de su contenido. */
+.dawn-backdrop {
+  --scene-h: clamp(170px, 17.5vw, 400px);
+  position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+  animation: fade-in 1.2s ease backwards; transition: opacity 0.8s ease;
+}
+.dawn-backdrop.is-leaving { opacity: 0; }
+body:has(.auth-shell) .dawn-backdrop { z-index: 2; }
+
+/* Cielo de las pantallas con sesión (components/AppSky.jsx): lo elige la persona con el botón sol/luna de la barra (noche por defecto). body[data-phase] vale "night" o "day". Noche = fondo oscuro con estrellas; día = cielo azul. */
+/* 15vw = 120 unidades de la escena visibles (la cima más alta está en y = 131 de 240): así ningún cerro queda cortado. */
+:root { --strip-h: clamp(150px, 15vw, 420px); }
+.app-sky { --scene-h: var(--strip-h); position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+.sky-day, .sky-night-glow, .sky-orb { transition: opacity 0.9s ease; }
+.sky-day { position: absolute; inset: 0; opacity: 0; background: linear-gradient(180deg, #245aa8 0%, #3a7bd0 45%, #8fbbe8 100%); }
+/* De noche, un resplandor en el horizonte para que se lean las siluetas de la ciudad. */
+.sky-night-glow {
+  position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--scene-h) * 2.2);
+  background: linear-gradient(to top, rgba(248, 170, 40, 0.3), rgba(150, 90, 190, 0.12) 50%, transparent);
+}
+.sky-orb { position: absolute; left: 88%; top: 16%; border-radius: 50%; transform: translate(-50%, -50%); }
+.sky-orb--sun { width: 96px; height: 96px; opacity: 0; background: #f8e208; box-shadow: 0 0 60px 25px rgba(248, 216, 8, 0.45); }
+.sky-orb--moon { width: 64px; height: 64px; background: radial-gradient(circle at 35% 35%, #fff, #dfe6f5 55%, #b9c4dd); box-shadow: 0 0 40px 12px rgba(200, 215, 255, 0.3); }
+body[data-phase="day"] .sky-day, body[data-phase="day"] .sky-orb--sun { opacity: 1; }
+body[data-phase="day"] .sky-night-glow, body[data-phase="day"] .sky-orb--moon { opacity: 0; }
+/* Nubes, cóndores y avión del cielo de día (components/SkyLife.jsx). */
+.sky-life { position: absolute; inset: 0; transition: opacity 0.9s ease; animation: fade-in 0.9s ease backwards; }
+.sky-life.is-leaving { opacity: 0; }
+.sky-life svg { display: block; width: 100%; height: 100%; }
+
+/* Franja de ciudad y cerros al pie (CityScene quieta), detrás del contenido. De noche lleva su propia paleta (siluetas azul oscuro sobre el resplandor del horizonte); de día, los colores del escudo. */
+.app-sky > .auth-scene { position: absolute; left: 0; right: 0; bottom: 0; height: var(--scene-h); pointer-events: none; }
+.app-sky .scene-back { mask-image: none; -webkit-mask-image: none; }
+.app-sky .scene-sky { display: none; }
+.app-sky .scene-back path, .app-sky .scene-city { transition: fill 0.9s ease; }
+.auth-scene.is-still .scene-sun, .auth-scene.is-still .scene-condor { display: none; }
+.auth-scene.is-still .scene-window { animation: none; opacity: 1; transition: opacity 0.9s ease; }
+body[data-phase="night"] .app-sky .scene-hill-far { fill: #2b3170; }
+body[data-phase="night"] .app-sky .scene-hill-mid { fill: #1d2258; }
+body[data-phase="night"] .app-sky .scene-city { fill: #0a0f2e; }
+body[data-phase="night"] .app-sky .scene-ground-teal { fill: #138070; }
+body[data-phase="night"] .app-sky .scene-ground { fill: #070b22; }
+/* De día no hay estrellas. */
+body[data-phase="day"] .starfield { opacity: 0; }
+/* Las estrellas son solo del cielo: se desvanecen antes de llegar al horizonte, sobre la franja de la ciudad no hay ninguna. */
+body[data-phase] .starfield {
+  mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - var(--strip-h) - 32vh), transparent calc(100% - var(--strip-h) - 4vh));
+  -webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - var(--strip-h) - 32vh), transparent calc(100% - var(--strip-h) - 4vh));
 }
 
-.auth-brand-mark {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-  display: grid;
-  place-items: center;
-  background: rgba(255,255,255,0.12);
-  border: 1px solid rgba(255,255,255,0.2);
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin-bottom: 24px;
+/* Atardecer al cerrar sesión (components/SunsetOverlay.jsx): aparece sobre la pantalla, el cielo se apaga y el sol baja al valle; al desvanecerse queda el login en reposo. */
+.sunset-overlay {
+  --scene-h: clamp(170px, 17.5vw, 400px);
+  position: fixed; inset: 0; z-index: 60; overflow: hidden;
+  animation: sunset-life 2.7s linear both;
 }
+.sunset-overlay::before {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(180deg, #2a62b8 0%, #3888d8 45%, #8cc4ee 78%, #f6dc78 100%);
+  animation: sky-fade 2s ease-in 0.4s both;
+}
+.sunset-overlay > .auth-sky { background: none; }
+.sunset-overlay .auth-sky svg { animation: sky-fade 1.6s ease-in 0.4s both; }
+.sunset-overlay .sky-cloud { animation: none; }
+.sunset-overlay .sky-sun { animation: sun-set 2s cubic-bezier(0.45, 0.05, 0.55, 0.95) 0.4s both; }
+@keyframes sunset-life {
+  0% { opacity: 0; }
+  13%, 82% { opacity: 1; }
+  100% { opacity: 0; }
+}
+@keyframes sky-fade { to { opacity: 0; } }
+@keyframes sun-set {
+  from { transform: translateY(-46vh) scale(1.6); }
+  to { transform: translateY(0) scale(1); }
+}
+
+/* Cielo (components/SkyOpening.jsx): nubes, cóndores y un avión. */
+.dawn-backdrop > .auth-sky {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, #2a62b8 0%, #3888d8 45%, #8cc4ee 78%, #f6dc78 100%);
+}
+.auth-sky svg { display: block; width: 100%; height: 100%; }
+@keyframes cloud-in {
+  from { transform: translateX(var(--from)); opacity: 0; }
+  to { transform: translateX(0); opacity: 0.92; }
+}
+@keyframes plane-fly {
+  0% { transform: translate(-200px, 0); }
+  28%, 100% { transform: translate(1100px, -50px); }
+}
+@keyframes cloud-drift {
+  from { transform: translateX(-35px); }
+  to { transform: translateX(35px); }
+}
+/* Sol del amanecer: nace en el valle donde se pone el de la escena (55% del ancho; 64 de 800 unidades de la escena sobre el borde inferior = 8vw) y sube por el cielo. */
+.sky-sun {
+  position: absolute; left: 55%; bottom: 8vw; width: 6vw; height: 6vw; margin: 0 0 -3vw -3vw; border-radius: 50%;
+  background: #f8e208; box-shadow: 0 0 4vw 2vw rgba(248, 216, 8, 0.4), 0 0 12vw 5vw rgba(248, 190, 30, 0.14);
+  animation: sun-climb 2.8s cubic-bezier(0.3, 0.7, 0.3, 1) both;
+}
+@keyframes sun-climb {
+  from { transform: translateY(0) scale(1); }
+  to { transform: translateY(-46vh) scale(1.6); }
+}
+.sky-cloud { animation: cloud-in 2.6s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+.sky-condor { animation: condor-fly 6s linear infinite; }
+.sky-drift { animation: cloud-drift 40s ease-in-out infinite alternate; }
+.sky-plane { animation: plane-fly 16s linear 0.6s infinite; }
+
+/* Escena (components/CityScene.jsx): cubre todo el ancho del pie de la página. En reposo vive en el login, detrás del formulario; en el amanecer, dentro de .dawn-backdrop. */
+.auth-panel { position: relative; }
+.auth-brand-panel > .auth-logo { z-index: 3; }
+.auth-panel > .auth-scene,
+.dawn-backdrop > .auth-scene,
+.sunset-overlay > .auth-scene {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; height: var(--scene-h); pointer-events: none;
+}
+.auth-scene svg { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.scene-back { mask-image: linear-gradient(to bottom, transparent 0, #000 45%); -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 45%); }
+@keyframes condor-fly {
+  from { transform: translate(-240px, 0); }
+  to { transform: translate(900px, -10px); }
+}
+@keyframes condor-flap {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(0.62); }
+}
+@keyframes window-flicker {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 1; }
+}
+@keyframes sun-glow {
+  0%, 100% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.1); opacity: 1; }
+}
+.scene-sun { transition: opacity 1.2s ease; }
+.is-rising .scene-sun { opacity: 0; } /* lo reemplaza .sky-sun, que sube mucho más */
+/* El paisaje del amanecer (dentro de .dawn-backdrop) usa el cielo del fondo, no el suyo. */
+.dawn-backdrop .scene-sky,
+.sunset-overlay .scene-sky { display: none; }
+.scene-condor { animation: condor-fly 40s linear infinite; }
+.scene-wings { transform-box: fill-box; transform-origin: center; animation: condor-flap 3.4s ease-in-out infinite; }
+.scene-window { animation: window-flicker 4.5s ease-in-out infinite; }
+.scene-glow { transform-box: fill-box; transform-origin: center; animation: sun-glow 7s ease-in-out infinite; }
+
+.auth-logo { display: block; width: min(300px, 100%); height: auto; margin-bottom: 24px; filter: drop-shadow(0 6px 24px rgba(0, 0, 0, 0.4)); }
 
 .auth-brand-kicker {
-  margin: 0 0 18px;
-  font-size: 0.78rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: #c7d2fe;
+  margin: 0 0 18px; font-size: var(--fs-xs); letter-spacing: 0.14em; text-transform: uppercase; color: var(--gold);
 }
 
 .auth-brand-panel h1 {
-  font-size: clamp(2.5rem, 3vw, 3.7rem);
-  line-height: 1.06;
-  margin: 0 0 18px;
-  color: #ffffff;
+  font-size: clamp(2.5rem, 3.4vw, 4.4rem); line-height: 1.06; margin: 0 0 18px; color: #fff;
 }
 
-.auth-brand-copy {
-  margin: 0 0 34px;
-  color: rgba(255,255,255,0.82);
-  line-height: 1.7;
-  max-width: 30rem;
-  font-size: 1.05rem;
-}
+.auth-brand-copy { margin: 0 0 34px; color: rgba(227, 232, 244, 0.78); line-height: 1.7; max-width: 30rem; font-size: var(--fs-lg); }
 
-.auth-points {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 14px;
-  color: rgba(255,255,255,0.9);
-}
-
-.auth-points li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 1rem;
-}
-
+.auth-points { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; color: rgba(227, 232, 244, 0.9); }
+.auth-points li { display: flex; align-items: center; gap: 10px; font-size: var(--fs-md); animation: rise 0.7s var(--ease) backwards; }
+.auth-points li:nth-child(1) { animation-delay: 0.5s; }
+.auth-points li:nth-child(2) { animation-delay: 0.62s; }
+.auth-points li:nth-child(3) { animation-delay: 0.74s; }
 .auth-points li::before {
-  content: "";
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #a5b4fc;
-  box-shadow: 0 0 0 5px rgba(165, 180, 252, 0.16);
+  content: ''; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 0 5px rgba(126, 166, 255, 0.16), 0 0 14px rgba(126, 166, 255, 0.7);
 }
 
 .auth-card {
   max-width: 500px; width: 100%; margin: 0 auto; padding: 48px 42px;
-  background: rgba(255,255,255,0.96);
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
+  background: rgba(6, 11, 32, 0.55); border: none; border-radius: 0; box-shadow: none;
 }
 
-.auth-card--welcome {
-  background: rgba(255,255,255,0.96);
+/* Columna del formulario: centrada y con un ancho cómodo aunque la pantalla sea enorme. */
+.auth-panel > .auth-card {
+  max-width: none; margin: 0; padding: 40px clamp(24px, 5vw, 72px) calc(var(--scene-h) * 0.4 + 24px);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  /* Nace transparente para fundirse con la columna de marca en vez de cortarla en seco. */
+  background: linear-gradient(90deg, rgba(6, 11, 32, 0) 0%, rgba(6, 11, 32, 0.55) 35%);
+  position: relative; z-index: 1; /* sobre el paisaje, bajo el cielo del login exitoso */
+}
+.auth-panel > .auth-card > * { width: min(420px, 100%); }
+
+/* Tarjeta suelta (código de verificación, registro...): vidrio oscuro que se lee igual sobre la noche o sobre el día. */
+.container > .auth-card {
+  margin: clamp(24px, 10vh, 120px) auto 0; border: 1px solid var(--border); border-radius: 22px;
+  background: rgba(8, 14, 40, 0.82); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
 }
 
 .auth-badge {
-  display: inline-block;
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: #e0e7ff;
-  color: #3730a3;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin-bottom: 14px;
+  display: inline-block; padding: 6px 12px; border-radius: 999px;
+  background: rgba(126, 166, 255, 0.16); border: 1px solid var(--border-strong); color: #b6ccff;
+  font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 14px;
 }
 
-.auth-card h2 {
-  font-size: 2.4rem;
-  margin: 0 0 10px;
-  color: #111827;
+.auth-card h2 { font-size: 2.4rem; margin: 0 0 10px; color: #fff; }
+.auth-subtitle { margin: 0 0 26px; color: var(--muted); font-size: var(--fs-lg); }
+.auth-links { margin-top: 18px; display: flex; flex-direction: column; gap: 4px; }
+.auth-card .form input { padding: 14px 16px; border-radius: 12px; }
+/* Campos con ícono y ojo para ver la contraseña */
+.field-box { position: relative; display: flex; align-items: center; }
+.field-box > svg { position: absolute; left: 14px; color: var(--muted); pointer-events: none; transition: color 0.25s ease; }
+.field-box:focus-within > svg { color: var(--gold); }
+.auth-card .form .field-box input { width: 100%; padding-left: 44px; padding-right: 44px; }
+.auth-card .form label:focus-within { color: var(--gold); }
+.auth-card .form input:focus { border-color: var(--gold); box-shadow: 0 0 0 4px rgba(252, 180, 12, 0.14); }
+.field-eye {
+  position: absolute; right: 6px; margin: 0; padding: 8px; display: grid; place-items: center;
+  background: none; box-shadow: none; color: var(--muted); border-radius: 8px;
 }
+.field-eye:hover { transform: none; box-shadow: none; filter: none; background: rgba(126, 166, 255, 0.14); color: var(--text); }
 
-.auth-subtitle {
-  margin: 0 0 26px;
-  color: var(--muted);
-  font-size: 1.08rem;
+/* Botón principal del login: ámbar del escudo, con destello al pasar el mouse */
+.auth-card .form button[type="submit"] {
+  position: relative; overflow: hidden; padding: 14px 18px; font-size: var(--fs-md); font-weight: 700;
+  background: linear-gradient(135deg, #f8d808 0%, #f8b818 60%, #f8a808 100%); color: #1b1206;
+  box-shadow: 0 10px 26px rgba(248, 184, 24, 0.28);
 }
-
-.auth-links {
-  margin-top: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.auth-card .form button[type="submit"]:hover { box-shadow: 0 14px 34px rgba(248, 184, 24, 0.45); filter: brightness(1.05); }
+.auth-card .form button[type="submit"]::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.5) 50%, transparent 70%);
+  transform: translateX(-120%);
 }
-
-.form {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  margin-top: 18px;
-}
-
-.form label {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  font-size: 0.9rem;
-  color: #475569;
-  font-weight: 600;
-}
-
-.form input {
-  padding: 14px 16px;
-  border-radius: 12px;
-  border: 1px solid #dbe3ef;
-  background: #f8fafc;
-  font-size: 1rem;
-  outline: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
-}
-
-.form input:focus {
-  border-color: #6366f1;
-  background: #ffffff;
-  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
-}
-
-button {
-  margin-top: 6px;
-  padding: 14px 18px;
-  border: none;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #4f46e5 0%, #4338ca 100%);
-  color: white;
-  font-weight: 700;
-  cursor: pointer;
-  font-size: 1rem;
-  transition: transform 0.2s ease, opacity 0.2s ease, box-shadow 0.2s ease;
-  box-shadow: 0 10px 20px rgba(79, 70, 229, 0.18);
-}
-
-button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 12px 22px rgba(79, 70, 229, 0.24);
-}
+.auth-card .form button[type="submit"]:hover::after { transform: translateX(120%); transition: transform 0.7s var(--ease); }
 
 @media (max-width: 760px) {
-  .auth-panel {
-    grid-template-columns: 1fr;
-  }
-
-  .auth-brand-panel {
-    padding: 32px 24px;
-  }
-
-  .auth-card {
-    padding: 28px 22px;
-  }
+  .auth-panel { grid-template-columns: 1fr; }
+  .auth-brand-panel { padding: 32px 24px; }
+  .auth-brand-panel::before { mask-image: none; -webkit-mask-image: none; }
+  .auth-scene, .sky-sun { display: none; }
+  .auth-card { padding: 28px 22px; }
+  .auth-panel > .auth-card { padding: 28px 22px; }
 }
 
+/* Páginas y formularios */
 .page {
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
-  border: 1px solid var(--border);
-  border-radius: 22px;
-  padding: 28px;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 22px; padding: 22px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 24px 60px rgba(0, 0, 0, 0.35);
+  animation: rise 0.7s var(--ease) backwards;
 }
 
-h1 { font-size: 1.5rem; margin-top: 0; }
-h2 { font-size: 1.1rem; margin-top: 0; }
-.muted { color: var(--muted); font-size: 0.9rem; }
+h1 { font-size: var(--fs-xl); margin-top: 0; }
+h2 { font-size: var(--fs-lg); margin-top: 0; }
+.muted { color: var(--muted); font-size: var(--fs-sm); }
 .centered { text-align: center; padding: 24px 0; }
 
 .form { display: flex; flex-direction: column; gap: 14px; margin-top: 16px; }
-.form label { display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; color: var(--muted); }
-.form input {
-  padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
-  font-size: 0.95rem; outline: none;
+.form label { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-sm); color: var(--muted); font-weight: 600; }
+.form input,
+.modal textarea,
+.toolbar input,
+.toolbar select {
+  padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border);
+  background-color: rgba(255, 255, 255, 0.05); color: var(--text);
+  font-family: inherit; font-size: var(--fs-md); outline: none;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
 }
-.form input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.12); }
+.form input:focus,
+.modal textarea:focus,
+.toolbar input:focus,
+.toolbar select:focus {
+  border-color: var(--accent); background-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 4px rgba(126, 166, 255, 0.14);
+}
+::placeholder { color: rgba(168, 163, 179, 0.6); }
+
+/* Desplegables: sin el aspecto nativo, con flecha propia y lista oscura. */
+select {
+  appearance: none; -webkit-appearance: none;
+  padding: 6px 32px 6px 12px; border-radius: 10px; border: 1px solid var(--border);
+  background-color: rgba(255, 255, 255, 0.05); color: var(--text);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' fill='none' stroke='%237ea6ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1.5l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 11px center;
+  font-family: inherit; font-size: var(--fs-sm); cursor: pointer; outline: none;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, background-color 0.25s ease;
+}
+select:hover { border-color: var(--border-strong); background-color: rgba(126, 166, 255, 0.1); }
+select:focus { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(126, 166, 255, 0.14); }
+select:disabled { opacity: 0.55; cursor: default; }
+option { background: #0f1a44; color: var(--text); }
 
 button {
-  padding: 10px 16px; border: none; border-radius: 8px;
-  background: var(--primary); color: white; font-weight: 600;
-  cursor: pointer; font-size: 0.9rem;
+  margin-top: 6px; padding: 10px 16px; border: none; border-radius: 10px;
+  background: linear-gradient(135deg, var(--primary) 0%, #3f6cf0 100%);
+  color: #fff; font-family: inherit; font-weight: 600; font-size: var(--fs-sm); cursor: pointer;
+  box-shadow: 0 8px 20px rgba(47, 85, 212, 0.28);
+  transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease), filter 0.25s ease;
 }
-button:hover { background: var(--primary-dark); }
-button:disabled { opacity: 0.6; cursor: default; }
+button:hover { transform: translateY(-1px); box-shadow: 0 12px 28px rgba(63, 108, 240, 0.45); filter: brightness(1.1); }
+button:disabled { opacity: 0.55; cursor: default; transform: none; box-shadow: none; filter: none; }
 
 .link-button {
-  margin-top: 0; background: none; color: var(--primary); padding: 0; font-weight: 500;
+  margin-top: 0; background: none; color: var(--accent); padding: 0; font-weight: 500;
   text-decoration: underline; box-shadow: none;
 }
-.link-button:hover { background: none; color: var(--primary-dark); transform: none; box-shadow: none; }
+.link-button:hover { background: none; color: #b6ccff; transform: none; box-shadow: none; filter: none; }
 
 .button-link {
   display: inline-block; margin-top: 8px; text-decoration: none;
-  padding: 10px 16px; border-radius: 8px; background: var(--primary); color: white;
+  padding: 10px 16px; border-radius: 10px; color: #fff; font-weight: 600;
+  background: linear-gradient(135deg, var(--primary) 0%, #3f6cf0 100%);
+  box-shadow: 0 8px 20px rgba(47, 85, 212, 0.28);
+  transition: transform 0.25s var(--ease), box-shadow 0.25s var(--ease);
 }
+.button-link:hover { color: #fff; transform: translateY(-1px); box-shadow: 0 12px 28px rgba(63, 108, 240, 0.45); }
 
-.error { color: var(--danger); font-size: 0.88rem; margin: 0; }
-.success { color: var(--success); font-size: 0.88rem; margin: 0; }
+.error { color: var(--danger); font-size: var(--fs-sm); margin: 0; }
+.success { color: var(--success); font-size: var(--fs-sm); margin: 0; }
+.warning { color: var(--warning); font-size: var(--fs-sm); margin: 0; }
 
 /* Número a tocar en el celular al aprobar un login por notificación push. */
 .push-number {
   font-size: 3rem; font-weight: 700; letter-spacing: 0.1em; text-align: center;
-  margin: 18px 0; color: #111827;
+  margin: 18px 0; color: var(--gold); text-shadow: 0 0 24px rgba(252, 180, 12, 0.4);
 }
 
 .badge {
-  padding: 2px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 700;
+  padding: 2px 10px; border-radius: 999px; font-size: var(--fs-xs); font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap;
 }
+.badge-superadmin { background: rgba(252, 180, 12, 0.2); color: #ffd15c; }
+.badge-admin { background: rgba(255, 53, 20, 0.18); color: #ff9b88; }
+.badge-user { background: rgba(59, 130, 246, 0.2); color: #9ec5ff; }
+.badge-active { background: rgba(34, 197, 94, 0.18); color: #86efac; }
+.badge-blocked { background: rgba(239, 68, 68, 0.2); color: #ffa3a3; }
+
 /* Avisos (acción aplicada a medias, p. ej. pendiente en la auth-api). */
-.warning { color: #92400e; font-size: 0.88rem; margin: 0; }
 .pending-retry {
-  display: block; margin: 6px 0 0; padding: 2px 8px; font-size: 0.75rem; font-weight: 600;
-  background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; border-radius: 999px;
-  box-shadow: none; white-space: nowrap;
+  display: block; margin: 6px 0 0; padding: 2px 8px; font-size: var(--fs-xs); font-weight: 600;
+  background: rgba(245, 158, 11, 0.16); color: var(--warning); border: 1px solid rgba(252, 211, 77, 0.4);
+  border-radius: 999px; box-shadow: none; white-space: nowrap;
 }
-.pending-retry:hover { background: #fde68a; transform: none; box-shadow: none; }
+.pending-retry:hover { background: rgba(245, 158, 11, 0.28); transform: none; box-shadow: none; filter: none; }
 
 /* Acciones de seguridad en el detalle de un usuario */
 .security-actions { margin-top: 24px; max-width: 720px; }
@@ -321,29 +517,48 @@ button:disabled { opacity: 0.6; cursor: default; }
 
 /* Datos que se leen mal partidos en dos líneas (RUT, fechas, IP). */
 .nowrap { white-space: nowrap; }
-.badge-superadmin { background: #ede9fe; color: #5b21b6; }
-.badge-admin { background: #fef3c7; color: #92400e; }
-.badge-user { background: #dbeafe; color: #1e40af; }
-.badge-active { background: #dcfce7; color: #166534; }
-.badge-blocked { background: #fee2e2; color: #991b1b; }
-
 .row-blocked td { color: var(--muted); }
 
 .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 16px; }
-.toolbar input,
-.toolbar select {
-  padding: 8px 12px; border-radius: 8px; border: 1px solid var(--border);
-  font-size: 0.9rem; background: var(--surface); color: var(--text); outline: none;
-}
+.toolbar input, .toolbar select { padding: 8px 12px; font-size: var(--fs-sm); }
+.toolbar select { padding-right: 32px; }
 .toolbar input[type="search"] { flex: 1 1 260px; }
-.toolbar input:focus,
-.toolbar select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.12); }
 
 /* Filtro de fecha (Actividad): etiqueta chica encima del input, no crece. */
-.toolbar-date {
-  display: flex; flex-direction: column; gap: 2px; font-size: 0.75rem; color: var(--muted);
+.toolbar-date { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-xs); color: var(--muted); }
+
+/* Calendario propio (components/DatePicker.jsx). Los botones de adentro no usan el estilo morado general. */
+.datepicker { position: relative; }
+.datepicker button {
+  margin: 0; box-shadow: none; filter: none; font-family: inherit; color: var(--text);
+  background: none; transition: background 0.2s ease, border-color 0.25s ease, color 0.2s ease;
 }
-.toolbar-date input { flex: none; }
+.datepicker button:hover { transform: none; box-shadow: none; filter: none; background: rgba(126, 166, 255, 0.16); }
+.datepicker-trigger {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 150px;
+  padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.05); font-size: var(--fs-sm); font-weight: 400;
+}
+.datepicker-trigger:hover, .datepicker-trigger[aria-expanded="true"] { border-color: var(--border-strong); }
+.datepicker-trigger svg { color: var(--accent); }
+.datepicker-pop {
+  position: absolute; top: calc(100% + 8px); left: 0; z-index: 30; width: 288px; max-width: calc(100vw - 32px);
+  padding: 14px; border-radius: 16px; background: #0f1a44; border: 1px solid var(--border-strong);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba(47, 85, 212, 0.2);
+  animation: rise 0.3s var(--ease) backwards;
+}
+.datepicker-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font-size: var(--fs-md); text-transform: capitalize; }
+.datepicker-head button { width: 32px; height: 32px; border-radius: 10px; border: 1px solid var(--border); font-size: 1.2rem; line-height: 1; padding: 0; }
+.datepicker-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; }
+.datepicker-weekday { padding: 6px 0; font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; color: var(--gold); }
+.datepicker-day { height: 34px; border-radius: 10px; border: 1px solid transparent; font-size: var(--fs-sm); padding: 0; }
+.datepicker-day.is-today { border-color: var(--border-strong); color: #b6ccff; }
+.datepicker-day.is-selected, .datepicker-day.is-selected:hover {
+  background: linear-gradient(135deg, var(--primary), #3f6cf0); color: #fff; font-weight: 700;
+  box-shadow: 0 0 16px rgba(63, 108, 240, 0.55);
+}
+.datepicker-foot { display: flex; justify-content: space-between; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.datepicker-foot button { padding: 4px 10px; border-radius: 8px; font-size: var(--fs-sm); color: var(--accent); }
 
 .pagination {
   display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
@@ -351,91 +566,156 @@ button:disabled { opacity: 0.6; cursor: default; }
 }
 .pagination-buttons { display: flex; gap: 10px; align-items: center; }
 .table-action {
-  margin: 0; padding: 5px 12px; font-size: 0.82rem; font-weight: 600; box-shadow: none;
+  margin: 0; padding: 5px 12px; font-size: var(--fs-sm); font-weight: 600; box-shadow: none;
   background: var(--surface-alt); color: var(--text); border: 1px solid var(--border);
 }
-.table-action:hover { background: #eef2ff; transform: none; box-shadow: none; }
-.table-action--danger { color: var(--danger); border-color: #fecaca; }
-.table-action--danger:hover { background: #fef2f2; }
+.table-action:hover { background: rgba(126, 166, 255, 0.16); border-color: var(--border-strong); transform: none; box-shadow: none; filter: none; }
+.table-action--danger { color: var(--danger); border-color: rgba(255, 122, 98, 0.4); }
+.table-action--danger:hover { background: rgba(239, 68, 68, 0.16); }
 
 /* Elección del segundo factor y configuración de la app autenticadora */
 .method-options { display: grid; gap: 12px; margin-top: 20px; }
 .method-option {
   display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 16px 18px; text-align: left;
-  background: var(--surface); color: var(--text); border: 1px solid var(--border);
+  background: var(--surface-alt); color: var(--text); border: 1px solid var(--border);
   border-radius: 12px; box-shadow: none; font-weight: 400;
 }
-.method-option:hover { background: #eef2ff; border-color: #c7d2fe; transform: none; box-shadow: none; }
-.method-option-title { font-weight: 700; font-size: 1rem; }
-.method-option-text { font-size: 0.88rem; color: var(--muted); line-height: 1.5; }
+.method-option:hover { background: rgba(126, 166, 255, 0.12); border-color: var(--border-strong); transform: none; box-shadow: none; filter: none; }
+.method-option-title { font-weight: 700; font-size: var(--fs-md); }
+.method-option-text { font-size: var(--fs-sm); color: var(--muted); line-height: 1.5; }
 
-.totp-steps { margin: 8px 0 16px; padding-left: 20px; font-size: 0.9rem; line-height: 1.6; }
+.totp-steps { margin: 8px 0 16px; padding-left: 20px; font-size: var(--fs-sm); line-height: 1.6; }
 .totp-qr {
   display: block; width: 200px; height: 200px; margin: 0 auto;
   border: 1px solid var(--border); border-radius: 12px; background: white; padding: 8px;
 }
 .totp-secret { text-align: center; margin: 12px 0 0; }
 .totp-secret code {
-  display: block; margin-top: 6px; font-size: 0.95rem; letter-spacing: 0.08em;
+  display: block; margin-top: 6px; font-size: var(--fs-md); letter-spacing: 0.08em;
   color: var(--text); word-break: break-all;
 }
 .totp-alt { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 
 /* Resumen del superadmin en el dashboard */
-.summary { margin-bottom: 28px; }
+.summary { margin-bottom: 20px; }
 .summary-subtitle {
-  margin: 22px 0 10px; font-size: 0.8rem; font-weight: 700; color: var(--muted);
-  text-transform: uppercase; letter-spacing: 0.06em;
+  margin: 18px 0 8px; font-size: var(--fs-xs); font-weight: 700; color: var(--gold);
+  text-transform: uppercase; letter-spacing: 0.08em;
 }
 .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
 .stat {
-  display: flex; flex-direction: column; gap: 2px; padding: 14px 16px;
-  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-alt);
+  display: flex; flex-direction: column; gap: 2px; padding: 12px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.05); border-radius: var(--radius); background: var(--surface-alt);
   color: var(--text); text-decoration: none;
 }
-.stat--link { transition: border-color 0.15s ease, background 0.15s ease; }
-.stat--link:hover { border-color: #c7d2fe; background: #eef2ff; }
-.stat-label { font-size: 0.8rem; color: var(--muted); }
-.stat-value { font-size: 1.7rem; font-weight: 700; line-height: 1.2; }
-.stat-hint { font-size: 0.75rem; color: var(--muted); }
-.stat--alert { border-color: #fecaca; background: #fef2f2; }
+.stat-label { font-size: var(--fs-sm); color: var(--muted); }
+.stat-value { font-size: var(--fs-num); font-weight: 700; line-height: 1.2; }
+.stat-hint { font-size: var(--fs-xs); color: var(--muted); }
+.stat--link:hover { color: var(--text); }
+.stat--alert { border-color: rgba(255, 122, 98, 0.45); background: rgba(239, 68, 68, 0.1); }
 .stat--alert .stat-value { color: var(--danger); }
 
 .recent-list { list-style: none; margin: 0; padding: 0; }
 .recent-list li {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px;
-  padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 0.9rem;
+  padding: 6px 0; border-bottom: 1px solid var(--border); font-size: var(--fs-sm);
 }
 .recent-list .recent-date { margin-left: auto; }
 
-.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 20px; }
-.card { border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; background: var(--surface-alt); }
+/* Tarjetas: el resplandor sigue al mouse (utils/spotlight.js) y entran escalonadas. */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 16px; }
+.card, .stat {
+  position: relative; isolation: isolate;
+  transition: border-color 0.35s var(--ease), box-shadow 0.35s var(--ease);
+}
+.card { border: 1px solid rgba(255, 255, 255, 0.05); border-radius: var(--radius); padding: 18px; background: var(--surface-alt); }
+.card::before, .stat::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; border-radius: inherit; pointer-events: none;
+  background: radial-gradient(260px circle at var(--mx, 50%) var(--my, 50%), rgba(var(--glow), 0.09), transparent 70%);
+  opacity: 0; transition: opacity 0.4s var(--ease);
+}
+.card:hover, .stat:hover { border-color: rgba(var(--glow), 0.3); box-shadow: 0 10px 30px rgba(var(--glow), 0.05); }
+body[data-phase="day"] { --glow: 255, 236, 190; }
+.card:hover::before, .stat:hover::before { opacity: 1; }
+
+.cards > *, .stat-grid > * { animation: rise 0.7s var(--ease) backwards; }
+.cards > :nth-child(2), .stat-grid > :nth-child(2) { animation-delay: 0.08s; }
+.cards > :nth-child(3), .stat-grid > :nth-child(3) { animation-delay: 0.16s; }
+.cards > :nth-child(4), .stat-grid > :nth-child(4) { animation-delay: 0.24s; }
+.cards > :nth-child(5), .stat-grid > :nth-child(5) { animation-delay: 0.32s; }
+.cards > :nth-child(n + 6), .stat-grid > :nth-child(n + 6) { animation-delay: 0.4s; }
 
 .kv { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.kv li { display: flex; justify-content: space-between; font-size: 0.9rem; }
+.kv li { display: flex; justify-content: space-between; gap: 16px; font-size: var(--fs-sm); }
 .kv li span:first-child { color: var(--muted); }
 
 /* Las tablas anchas se desplazan dentro de su contenedor en pantallas
    angostas, en vez de ensanchar toda la página. */
 .table-wrap { overflow-x: auto; margin-top: 20px; }
 .table-wrap .table { margin-top: 0; }
+
+/* "Ver completo" en Actividad: botón celeste SÓLIDO (las insignias de rol y estado son translúcidas y ninguna es celeste), para que se note que el motivo se puede leer entero y no se confunda con una insignia. El celeste es el de la web del municipio. */
+.reason-more {
+  display: inline-flex; align-items: center; gap: 4px; margin: 4px 0 2px 4px; padding: 1px 12px; border-radius: 999px; line-height: 1.4;
+  font-size: var(--fs-xs); font-weight: 800; color: #06122e; text-decoration: none; vertical-align: middle;
+  background: #59c5dc; border: 1px solid #59c5dc; box-shadow: none;
+  transition: background 0.25s var(--ease), box-shadow 0.25s var(--ease), gap 0.25s var(--ease);
+}
+.reason-more::after { content: '›'; font-size: 1.15em; line-height: 1; }
+.reason-more:hover { transform: none; filter: none; gap: 7px; background: #85dcee; box-shadow: 0 0 16px rgba(89, 197, 220, 0.45); }
+
+/* Página con lista (Actividad, Usuarios, Cuentas registradas, detalle de usuario): el recuadro crece con los datos hasta el alto estándar (--page-h) y de ahí en adelante solo la lista se desplaza por dentro, con los encabezados pegados. Así todas las pestañas llenas miden lo mismo. */
+.page--scroll { display: flex; flex-direction: column; max-height: var(--page-h); }
+/* Medida estándar del recuadro principal: el dashboard no baja de ella y las pestañas con listas no pasan de ella. */
+.page--std { min-height: var(--page-h); }
+.page--scroll > .table-wrap { flex: 1; min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: rgba(126, 166, 255, 0.45) transparent; }
+.page--scroll .table thead th { position: sticky; top: 0; z-index: 1; background: rgb(10, 18, 52); }
+.page--scroll > .table-wrap::-webkit-scrollbar { width: 10px; height: 10px; }
+.page--scroll > .table-wrap::-webkit-scrollbar-thumb { background: rgba(126, 166, 255, 0.4); border-radius: 8px; }
+.page--scroll > .table-wrap::-webkit-scrollbar-track { background: transparent; }
 .table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-.table th, .table td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); font-size: 0.9rem; }
-.table th { color: var(--muted); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; white-space: nowrap; }
+.table th, .table td { text-align: left; padding: 10px 6px; border-bottom: 1px solid var(--border); font-size: var(--fs-sm); }
+.table th { color: var(--gold); font-weight: 600; font-size: var(--fs-xs); text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+/* Enlaces dentro de tablas y listas: chip morado con flecha que aparece al pasar el mouse. */
+.table a, .recent-list a {
+  display: inline-flex; align-items: center; gap: 0; padding: 2px 10px; border-radius: 999px;
+  color: #b6ccff; text-decoration: none; font-weight: 500;
+  background: rgba(79, 120, 235, 0.12); border: 1px solid rgba(126, 166, 255, 0.28);
+  transition: background 0.3s var(--ease), border-color 0.3s var(--ease), box-shadow 0.3s var(--ease), color 0.25s ease, gap 0.3s var(--ease);
+}
+.table a::after, .recent-list a::after {
+  content: '→'; max-width: 0; overflow: hidden; opacity: 0;
+  transition: max-width 0.3s var(--ease), opacity 0.3s var(--ease);
+}
+.table a:hover, .recent-list a:hover {
+  gap: 6px; color: #fff; background: rgba(79, 120, 235, 0.3); border-color: var(--accent);
+  box-shadow: 0 0 18px rgba(126, 166, 255, 0.35);
+}
+.table a:hover::after, .recent-list a:hover::after { max-width: 1.2em; opacity: 1; }
+/* Jerarquía de las tablas: texto normal suave, datos secundarios atenuados (.cell-dim) y solo lo importante en blanco y negrita. */
+.table td { color: #cdd4e6; line-height: 1.5; }
+.table td strong { color: #fff; font-weight: 700; }
+.table td.cell-dim, .table td.muted { color: var(--dim); }
+.table tbody tr { transition: background 0.2s ease; }
+.table tbody tr:hover { background: rgba(126, 166, 255, 0.07); }
 .actions { display: flex; gap: 12px; }
 
-/* Diálogo para pedir un motivo obligatorio (bloquear/desbloquear, cambiar rol) */
+/* Diálogos (ActionModal, PIN, motivo completo) */
 .modal-overlay {
-  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.5);
+  position: fixed; inset: 0; background: rgba(4, 8, 24, 0.72);
+  backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
   display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 100;
+  animation: fade-in 0.25s ease backwards;
 }
-.modal { width: 100%; max-width: 440px; background: var(--surface); }
-.modal textarea {
-  padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
-  font-size: 0.95rem; font-family: inherit; outline: none; resize: vertical;
-}
-.modal textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(79,70,229,0.12); }
+.modal { width: 100%; max-width: 440px; background: #0f1a44; border-color: var(--border); animation: rise 0.4s var(--ease) backwards; }
+.modal textarea { resize: vertical; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
 .modal-actions button { margin: 0; }
-.table-action--danger-solid { background: var(--danger); color: white; }
+.table-action--danger-solid { background: var(--danger-solid); color: white; border-color: transparent; }
 .table-action--danger-solid:hover { background: #b91c1c; }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* Quien pide menos movimiento en su sistema no ve nada animado. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

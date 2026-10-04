@@ -46,7 +46,7 @@ export function UsuarioDetallePage() {
   }, [authUserId]);
 
   return (
-    <div className="page">
+    <div className="page page--scroll">
       <p style={{ margin: '0 0 12px' }}>
         <Link to="/usuarios">← Volver a usuarios</Link>
       </p>
@@ -102,7 +102,7 @@ export function UsuarioDetallePage() {
                 <tbody>
                   {logins.map((l) => (
                     <tr key={l.id}>
-                      <td style={{ whiteSpace: 'nowrap' }}>{formatDate(l.created_at)}</td>
+                      <td className="cell-dim nowrap">{formatDate(l.created_at)}</td>
                       <td>
                         {l.result === 'success' ? (
                           <span className="badge badge-active">Exitoso</span>

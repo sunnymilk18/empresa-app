@@ -178,7 +178,7 @@ export function UsuariosPage() {
   }
 
   return (
-    <div className="page">
+    <div className="page page--scroll">
       <h1>Usuarios</h1>
       <p className="muted">
         Personas que completaron el login (correo verificado + segundo factor) al menos una vez.
@@ -264,7 +264,7 @@ export function UsuariosPage() {
                         </select>
                       )}
                     </td>
-                    <td className="nowrap">{formatDate(u.last_login_at)}</td>
+                    <td className="nowrap cell-dim">{formatDate(u.last_login_at)}</td>
                     <td className="nowrap muted">{formatIp(u.last_login_ip)}</td>
                     <td>
                       {u.blocked_at ? (

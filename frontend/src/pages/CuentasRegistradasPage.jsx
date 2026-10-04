@@ -95,7 +95,7 @@ export function CuentasRegistradasPage() {
   }
 
   return (
-    <div className="page">
+    <div className="page page--scroll">
       <h1>Cuentas registradas</h1>
       <p className="muted">
         Todas las cuentas registradas en el servicio de autenticación para este sistema, incluidas
@@ -156,7 +156,7 @@ export function CuentasRegistradasPage() {
                       <span className="badge badge-blocked">Baneada</span>
                     )}
                   </td>
-                  <td className="nowrap">{formatDate(u.created_at)}</td>
+                  <td className="nowrap cell-dim">{formatDate(u.created_at)}</td>
                 </tr>
               ))}
             </tbody>

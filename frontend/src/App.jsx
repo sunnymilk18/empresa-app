@@ -1,8 +1,13 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
+import { DawnProvider } from './auth/DawnContext';
 import { ProtectedRoute } from './auth/ProtectedRoute';
+import { AppSky } from './components/AppSky';
+import { DawnBackdrop } from './components/DawnBackdrop';
 import { Navbar } from './components/Navbar';
 import { PinGate } from './components/PinGate';
+import { StarField } from './components/StarField';
+import { SunsetOverlay } from './components/SunsetOverlay';
 import { RegisterPage } from './pages/RegisterPage';
 import { VerifyEmailPage } from './pages/VerifyEmailPage';
 import { LoginPage } from './pages/LoginPage';
@@ -21,61 +26,67 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Navbar />
-        <PinGate />
-        <main className="container">
-          <Routes>
-            <Route path="/register" element={<RegisterPage />} />
-            <Route path="/verify-email" element={<VerifyEmailPage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="/verify-otp" element={<VerifyOtpPage />} />
-            <Route path="/aprobar-celular" element={<PushLoginPage />} />
-            <Route path="/elegir-metodo" element={<ElegirMetodoPage />} />
-            <Route path="/configurar-app" element={<ConfigurarAppPage />} />
-            <Route
-              path="/dashboard"
-              element={
-                <ProtectedRoute>
-                  <DashboardPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/usuarios"
-              element={
-                <ProtectedRoute roles={['superadmin']}>
-                  <UsuariosPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/usuarios/:authUserId"
-              element={
-                <ProtectedRoute roles={['superadmin']}>
-                  <UsuarioDetallePage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/actividad"
-              element={
-                <ProtectedRoute roles={['superadmin']}>
-                  <ActividadPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/cuentas-registradas"
-              element={
-                <ProtectedRoute roles={['superadmin']}>
-                  <CuentasRegistradasPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
-          </Routes>
-        </main>
+        <DawnProvider>
+          <AppSky />
+          <StarField />
+          <DawnBackdrop />
+          <SunsetOverlay />
+          <Navbar />
+          <PinGate />
+          <main className="container">
+            <Routes>
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/verify-email" element={<VerifyEmailPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/verify-otp" element={<VerifyOtpPage />} />
+              <Route path="/aprobar-celular" element={<PushLoginPage />} />
+              <Route path="/elegir-metodo" element={<ElegirMetodoPage />} />
+              <Route path="/configurar-app" element={<ConfigurarAppPage />} />
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <DashboardPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/usuarios"
+                element={
+                  <ProtectedRoute roles={['superadmin']}>
+                    <UsuariosPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/usuarios/:authUserId"
+                element={
+                  <ProtectedRoute roles={['superadmin']}>
+                    <UsuarioDetallePage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/actividad"
+                element={
+                  <ProtectedRoute roles={['superadmin']}>
+                    <ActividadPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/cuentas-registradas"
+                element={
+                  <ProtectedRoute roles={['superadmin']}>
+                    <CuentasRegistradasPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+          </main>
+        </DawnProvider>
       </AuthProvider>
     </BrowserRouter>
   );

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth/AuthContext';
+import { DatePicker } from '../components/DatePicker';
 import { formatIp } from '../utils/ip';
 
 // Mismas acciones que backend/src/lib/audit.js (AUDIT_ACTIONS) — se
@@ -77,8 +78,8 @@ function reasonNote(reason, onShowReason) {
       {isLong && (
         <>
           {' '}
-          <button type="button" className="link-button" onClick={() => onShowReason(reason)}>
-            ver completo
+          <button type="button" className="reason-more" onClick={() => onShowReason(reason)} aria-label="Leer el motivo completo">
+            Ver completo
           </button>
         </>
       )}
@@ -198,7 +199,7 @@ export function ActividadPage() {
   }, [actor, target, action, from, to]);
 
   return (
-    <div className="page">
+    <div className="page page--scroll">
       <h1>Actividad</h1>
       <p className="muted">
         Historial de acciones de administración y cambios de seguridad de cada cuenta. No se
@@ -233,24 +234,8 @@ export function ActividadPage() {
             <option key={value} value={value}>{label}</option>
           ))}
         </select>
-        <label className="toolbar-date">
-          Desde
-          <input
-            type="date"
-            value={from}
-            onChange={(e) => updateParams({ from: e.target.value })}
-            aria-label="Desde"
-          />
-        </label>
-        <label className="toolbar-date">
-          Hasta
-          <input
-            type="date"
-            value={to}
-            onChange={(e) => updateParams({ to: e.target.value })}
-            aria-label="Hasta"
-          />
-        </label>
+        <DatePicker label="Desde" value={from} onChange={(value) => updateParams({ from: value })} />
+        <DatePicker label="Hasta" value={to} onChange={(value) => updateParams({ to: value })} />
         {hasFilters && (
           <button
             className="table-action"
@@ -285,8 +270,8 @@ export function ActividadPage() {
             <tbody>
               {entries.map((e) => (
                 <tr key={e.id}>
-                  <td style={{ whiteSpace: 'nowrap' }}>{formatDate(e.created_at)}</td>
-                  <td>{e.actor_email}</td>
+                  <td className="cell-dim nowrap">{formatDate(e.created_at)}</td>
+                  <td className="cell-dim">{e.actor_email}</td>
                   <td>{describe(e, setFullReason)}</td>
                   <td className="muted nowrap">{formatIp(e.ip)}</td>
                 </tr>

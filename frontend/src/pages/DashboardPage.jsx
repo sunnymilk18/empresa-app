@@ -1,18 +1,23 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { AdminSummary } from '../components/AdminSummary';
+import { FallingText } from '../components/FallingText';
 import { SecurityCard } from '../components/SecurityCard';
+import { greetingOf, useChileHour } from '../utils/dayPhase';
 import { formatRut } from '../utils/rut';
 
 export function DashboardPage() {
   const { profile } = useAuth();
+  const hour = useChileHour();
 
   return (
-    <div className="page">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
+    <div className="page page--std">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', marginBottom: '18px', flexWrap: 'wrap' }}>
         <div>
           <p className="muted" style={{ margin: 0, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700 }}>Dashboard</p>
-          <h1 style={{ margin: '8px 0 4px' }}>Bienvenido, {profile?.username || profile?.email}</h1>
+          <h1 style={{ margin: '8px 0 4px' }}>
+            <FallingText text={`${greetingOf(hour)}, ${profile?.username || profile?.email || ''}`} />
+          </h1>
         </div>
         <span className={`badge badge-${profile?.role}`}>{profile?.role}</span>
       </div>
