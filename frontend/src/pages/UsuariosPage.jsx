@@ -264,7 +264,7 @@ export function UsuariosPage() {
                         </select>
                       )}
                     </td>
-                    <td className="nowrap cell-dim">{formatDate(u.last_login_at)}</td>
+                    <td className="nowrap cell-dim cell-stack">{formatDate(u.last_login_at).split(', ').map((part, i) => <span key={i}>{part}</span>)}</td>
                     <td className="nowrap muted">{formatIp(u.last_login_ip)}</td>
                     <td>
                       {u.blocked_at ? (

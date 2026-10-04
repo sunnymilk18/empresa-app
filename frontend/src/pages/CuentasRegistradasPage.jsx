@@ -156,7 +156,7 @@ export function CuentasRegistradasPage() {
                       <span className="badge badge-blocked">Baneada</span>
                     )}
                   </td>
-                  <td className="nowrap cell-dim">{formatDate(u.created_at)}</td>
+                  <td className="nowrap cell-dim cell-stack">{formatDate(u.created_at).split(', ').map((part, i) => <span key={i}>{part}</span>)}</td>
                 </tr>
               ))}
             </tbody>

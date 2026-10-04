@@ -22,8 +22,8 @@
   --warning: #fcd34d;
   --radius: 14px;
   --glow: 126, 166, 255; /* luz que sigue al cursor sobre las tarjetas: azul pálido (luna) de noche; blanco cálido (sol) de día, ver body[data-phase="day"] */
-  --page-w: 1340px; /* ancho estándar del recuadro principal de todas las pestañas */
-  --page-h: clamp(560px, calc(100vh - 120px), 930px); /* alto estándar del recuadro principal de todas las pestañas: 930px en pantallas altas, y en las de 1080p se ajusta para que entre completo sin scroll de página (120px = barra + márgenes) */
+  --page-w: 1180px; /* ancho estándar del recuadro principal de todas las pestañas */
+  --page-h: clamp(560px, calc(100vh - 180px), 930px); /* alto estándar del recuadro principal de todas las pestañas: hasta 930px en pantallas altas; en 1080p se ajusta para que entre completo y deje ver la ciudad (180px = barra + márgenes + franja de ciudad) */
   /* Escala de letra: nada por debajo de 14px. Todo el CSS usa solo estos tamaños. */
   --fs-xs: 0.9375rem;   /* 15px: etiquetas, insignias, pistas */
   --fs-sm: 1.0625rem;       /* 17px: texto secundario, tablas, formularios, botones chicos */
@@ -93,6 +93,8 @@ body:has(.auth-sky) .starfield { opacity: 0; }
 
 /* #root es una columna del alto de la ventana: así el login ocupa lo que queda bajo la barra superior (si hay sesión) sin generar scroll. */
 #root { min-height: 100vh; display: flex; flex-direction: column; }
+/* Pantallas grandes: el recuadro vuelve a su medida amplia. */
+@media (min-width: 2200px) { :root { --page-w: 1340px; } }
 .container { width: 100%; max-width: calc(var(--page-w) + 40px); margin: 0 auto; padding: 18px 20px 28px; } /* --page-w + el relleno de los lados: lo bastante para la tabla de Usuarios sin scroll */
 /* El login va de borde a borde: sin el ancho máximo ni los márgenes del resto de las páginas. */
 .container:has(> .auth-shell) { flex: 1; display: flex; flex-direction: column; max-width: none; padding: 0; z-index: auto; }
@@ -675,6 +677,9 @@ body[data-phase="day"] { --glow: 255, 236, 190; }
 .page--scroll > .table-wrap::-webkit-scrollbar { width: 10px; height: 10px; }
 .page--scroll > .table-wrap::-webkit-scrollbar-thumb { background: rgba(126, 166, 255, 0.4); border-radius: 8px; }
 .page--scroll > .table-wrap::-webkit-scrollbar-track { background: transparent; }
+/* Fecha y hora en una línea; en ventanas angostas, en dos (para que la tabla no necesite scroll horizontal). */
+.cell-stack span:first-child::after { content: ", "; }
+@media (max-width: 1500px) { .cell-stack span { display: block; } .cell-stack span:first-child::after { content: none; } }
 /* Detalle de usuario: datos a la izquierda, acciones de seguridad a la derecha. */
 .detail-top { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(0, 1.4fr); gap: 32px; align-items: start; margin-top: 20px; }
 .detail-top .security-actions { margin-top: 0; max-width: none; }
