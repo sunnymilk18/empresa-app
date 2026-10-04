@@ -13,6 +13,56 @@ function formatDate(value) {
 
 const METHOD_LABELS = { otp: 'Código por correo', totp: 'App autenticadora' };
 
+// Resumen de los inicios de sesión ya cargados (la página trae de a tantos:
+// si hay más, las cifras son de los más recientes — se avisa en el texto).
+function summarizeLogins(logins) {
+  const ok = logins.filter((l) => l.result === 'success');
+  const methods = {};
+  for (const l of ok) methods[l.method] = (methods[l.method] || 0) + 1;
+  const topMethod = Object.entries(methods).sort((a, b) => b[1] - a[1])[0]?.[0];
+  return {
+    ok: ok.length,
+    blocked: logins.length - ok.length,
+    ips: new Set(logins.map((l) => l.ip).filter(Boolean)).size,
+    devices: new Set(logins.map((l) => describeUserAgent(l.user_agent))).size,
+    topMethod,
+  };
+}
+
+// Tarjetas de resumen + estado de la cuenta. El segundo factor se deduce del
+// método del último inicio exitoso: el servicio de autenticación no lo expone
+// por usuario a este backend.
+function UserOverview({ user, logins, hasMore }) {
+  const sum = summarizeLogins(logins);
+  const lastMethod = logins.find((l) => l.result === 'success')?.method;
+  const pending = user.auth_api_pending_action;
+  return (
+    <>
+      <div className="stat-grid detail-stats">
+        <div className="stat"><span className="stat-label">Exitosos</span><span className="stat-value">{sum.ok}</span></div>
+        <div className={`stat${sum.blocked ? ' stat--alert' : ''}`}>
+          <span className="stat-label">Bloqueados</span><span className="stat-value">{sum.blocked}</span>
+        </div>
+        <div className="stat"><span className="stat-label">IPs distintas</span><span className="stat-value">{sum.ips}</span></div>
+        <div className="stat"><span className="stat-label">Dispositivos</span><span className="stat-value">{sum.devices}</span></div>
+      </div>
+      <p className="muted detail-note">
+        {hasMore ? `Según sus ${logins.length} inicios más recientes.` : `Según sus ${logins.length} inicios registrados.`}
+        {sum.topMethod && <> Entra sobre todo con {METHOD_LABELS[sum.topMethod].toLowerCase()}.</>}
+      </p>
+      <div className="detail-badges">
+        {user.blocked_at ? <span className="badge badge-blocked">Cuenta bloqueada</span> : <span className="badge badge-active">Cuenta activa</span>}
+        {lastMethod && (
+          <span className="badge badge-user">
+            {lastMethod === 'totp' ? 'Usa app autenticadora' : 'Usa código por correo'}
+          </span>
+        )}
+        {pending && <span className="badge badge-blocked">Pendiente en la auth-api</span>}
+      </div>
+    </>
+  );
+}
+
 // Detalle de un usuario para el superadmin: sus datos y su historial de
 // inicios de sesión (incluye intentos de cuentas bloqueadas).
 export function UsuarioDetallePage() {
@@ -46,9 +96,9 @@ export function UsuarioDetallePage() {
   }, [authUserId]);
 
   return (
-    <div className="page page--scroll">
-      <p style={{ margin: '0 0 12px' }}>
-        <Link to="/usuarios">← Volver a usuarios</Link>
+    <div className="page page--std page--scroll">
+      <p style={{ margin: '0 0 14px' }}>
+        <Link to="/usuarios" className="back-link">← Volver a usuarios</Link>
       </p>
       {error && <p className="error">{error}</p>}
 
@@ -64,7 +114,9 @@ export function UsuarioDetallePage() {
             )}
           </div>
 
-          <ul className="kv" style={{ maxWidth: 480, marginTop: 20 }}>
+          <div className="detail-top">
+          <div>
+          <ul className="kv">
             <li><span>Usuario</span><span>{user.username || '—'}</span></li>
             <li><span>RUT</span><span>{user.rut ? formatRut(user.rut) : '—'}</span></li>
             <li><span>Primer ingreso</span><span>{formatDate(user.created_at)}</span></li>
@@ -75,11 +127,15 @@ export function UsuarioDetallePage() {
             )}
           </ul>
 
+          <UserOverview user={user} logins={logins} hasMore={hasMore} />
+          </div>
+
           <UserSecurityActions
             user={user}
             onUserChange={setUser}
             lastMethod={logins.find((l) => l.result === 'success')?.method}
           />
+          </div>
 
           <h2 style={{ marginTop: 32 }}>Inicios de sesión</h2>
           {!loading && logins.length === 0 ? (
