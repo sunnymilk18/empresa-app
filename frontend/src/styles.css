@@ -304,7 +304,9 @@ body:has(.sunset-overlay.is-night) .starfield { z-index: 61; }
 
 /* Escena (components/CityScene.jsx): cubre todo el ancho del pie de la página. En reposo vive en el login, detrás del formulario; en el amanecer, dentro de .dawn-backdrop. */
 .auth-panel { position: relative; }
-.auth-brand-panel > .auth-logo { z-index: 3; }
+.auth-brand-panel > .auth-logo { z-index: 3; transition: opacity 0.4s ease; }
+/* Al amanecer el cielo tapa el título y el formulario: el logo, que va por encima, se apaga con ellos en vez de quedar solo a mitad de la pantalla. */
+body:has(.dawn-backdrop:not(.is-leaving)) .auth-brand-panel > .auth-logo { opacity: 0; }
 .auth-panel > .auth-scene,
 .dawn-backdrop > .auth-scene,
 .sunset-overlay > .auth-scene {
