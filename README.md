@@ -274,6 +274,15 @@ que no lleva ninguna API key. Dos diferencias con la web:
 | POST / DELETE | `/api/auth/devices/:id/push` | con sesión | Activar / desactivar la aprobación por push en ese dispositivo |
 | POST | `/api/auth/login/push-answer` | con sesión | Responder desde el celular a un login pendiente de otro dispositivo |
 
+**Enlaces de aplicación (Android App Links).** Los correos de corrección de correo y de
+restablecer contraseña traen enlaces web (`/confirmar-correo?email=...` y
+`/forgot-password?email=...`). Si la app está instalada, Android los abre en la app; si no,
+abren la web. Para que Android lo verifique, el frontend publica
+`frontend/public/.well-known/assetlinks.json` (con el `applicationId` de la app y la huella
+SHA-256 de su clave de firma de publicación), que nginx sirve como JSON sin redirecciones.
+Si cambia el dominio del panel o la clave de firma, hay que actualizar ese archivo y el
+manifiesto de la app.
+
 ### Bloqueos automáticos de la auth-api (superadmin)
 
 La auth-api bloquea sola a quien se equivoca demasiado: una **IP** que dispara varias veces

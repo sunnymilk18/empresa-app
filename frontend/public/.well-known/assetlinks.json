@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.auth2faapp.auth_2fa_app",
+      "sha256_cert_fingerprints": [
+        "93:1B:B1:D4:FD:CC:CC:80:48:A8:1F:FB:5D:80:E4:37:4E:AD:68:43:0A:6D:03:08:0E:69:5F:A0:96:D0:CD:2F"
+      ]
+    }
+  }
+]
