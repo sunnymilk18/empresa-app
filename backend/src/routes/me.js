@@ -1,4 +1,5 @@
 const express = require('express');
+const net = require('net');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const config = require('../config');
 const {
@@ -10,12 +11,21 @@ const {
   runIdentityAction,
   sendPasswordReset,
   requestEmailChange,
+  clearAccountLockouts,
+  liftIpBan,
 } = require('../lib/localUsers');
 const { listAuditLog, AUDIT_ACTIONS } = require('../lib/audit');
 const { listLoginHistory } = require('../lib/loginHistory');
 const { requireAdminPin } = require('../lib/adminPin');
 const { getDashboardStats } = require('../lib/stats');
-const { authApiFetch, systemAdminListUsers, systemAdminSetLoginPin, SYSTEM_ADMIN_MESSAGES } = require('../lib/authApi');
+const {
+  authApiFetch,
+  systemAdminListUsers,
+  systemAdminSetLoginPin,
+  systemAdminListBans,
+  systemAdminGetLockouts,
+  SYSTEM_ADMIN_MESSAGES,
+} = require('../lib/authApi');
 const asyncHandler = require('../lib/asyncHandler');
 
 const router = express.Router();
@@ -166,6 +176,7 @@ const IDENTITY_ACTION_STATUS = {
   disabled: 503,
   invalid_email: 400,
   email_in_use: 409,
+  bad_request: 400,
 };
 
 // POST /api/local-users/:authUserId/revoke-sessions  (solo superadmin)
@@ -226,6 +237,83 @@ router.post('/local-users/:authUserId/change-email', requireAuth, requireRole('s
       .json({ error: SYSTEM_ADMIN_MESSAGES[result.authApi], code: `auth_api_${result.authApi}` });
   }
   res.json({ user: result.user });
+}));
+
+// GET /api/local-users/:authUserId/lockouts  (solo superadmin)
+// Si la cuenta tiene bloqueo por intentos fallidos de contraseña o de PIN, y cuánto
+// falta para que se libere: { login: { locked, retry_after_seconds }, pin: {...} }.
+router.get('/local-users/:authUserId/lockouts', requireAuth, requireRole('superadmin'), asyncHandler(async (req, res) => {
+  const result = await systemAdminGetLockouts(req.params.authUserId);
+  if (!result.ok) {
+    return res
+      .status(IDENTITY_ACTION_STATUS[result.reason])
+      .json({ error: SYSTEM_ADMIN_MESSAGES[result.reason], code: `auth_api_${result.reason}` });
+  }
+  res.json(result.data);
+}));
+
+// POST /api/local-users/:authUserId/clear-lockouts  { which, reason, pin }  (solo superadmin)
+// which: 'login' | 'pin' | 'all'. Deja en cero los intentos fallidos de esa cuenta para
+// que pueda volver a intentar sin esperar; no cierra sesiones ni toca su PIN. Pide
+// motivo y PIN como las demás acciones y no se permite sobre la propia cuenta.
+router.post('/local-users/:authUserId/clear-lockouts', requireAuth, requireRole('superadmin'), requireAdminPin, asyncHandler(async (req, res) => {
+  if (req.params.authUserId === req.authUser.id) {
+    return res.status(400).json({ error: 'Esta acción no se puede usar sobre tu propia cuenta' });
+  }
+  const { which } = req.body;
+  if (!['login', 'pin', 'all'].includes(which)) {
+    return res.status(400).json({ error: 'which debe ser login, pin o all' });
+  }
+  const reason = requiredReason(req.body);
+  if (!reason) {
+    return res.status(400).json({ error: `El motivo es obligatorio (máx. ${REASON_MAX_LENGTH} caracteres)` });
+  }
+  const result = await clearAccountLockouts(req.params.authUserId, which, actorOf(req), reason);
+  if (!result) return res.status(404).json({ error: 'Usuario no encontrado' });
+  if (result.authApi !== 'ok') {
+    return res
+      .status(IDENTITY_ACTION_STATUS[result.authApi])
+      .json({ error: SYSTEM_ADMIN_MESSAGES[result.authApi], code: `auth_api_${result.authApi}` });
+  }
+  res.json({ user: result.user });
+}));
+
+// GET /api/blacklist  (solo superadmin)
+// IPs que la auth-api tiene baneadas por demasiados intentos y que este sistema generó:
+// { bans: [{ ip, reference, banned_at, banned_until, level, strikes }] } (fechas en
+// segundos Unix). El baneo vale para esa IP en todos los sistemas; aquí solo se ven y
+// se levantan los propios.
+router.get('/blacklist', requireAuth, requireRole('superadmin'), asyncHandler(async (req, res) => {
+  const result = await systemAdminListBans();
+  if (!result.ok) {
+    const status = result.reason === 'unauthorized' ? 502 : 503;
+    return res.status(status).json({ error: SYSTEM_ADMIN_MESSAGES[result.reason], code: `auth_api_${result.reason}` });
+  }
+  res.json({ bans: result.data?.bans ?? [] });
+}));
+
+// POST /api/blacklist/lift  { ip, reason, pin }  (solo superadmin)
+// Levanta el baneo de una IP. Pide motivo y PIN; queda en Actividad con la IP.
+router.post('/blacklist/lift', requireAuth, requireRole('superadmin'), requireAdminPin, asyncHandler(async (req, res) => {
+  const ip = typeof req.body.ip === 'string' ? req.body.ip.trim() : '';
+  if (!net.isIP(ip)) return res.status(400).json({ error: 'La IP no tiene un formato válido' });
+  const reason = requiredReason(req.body);
+  if (!reason) {
+    return res.status(400).json({ error: `El motivo es obligatorio (máx. ${REASON_MAX_LENGTH} caracteres)` });
+  }
+  const { authApi } = await liftIpBan(ip, actorOf(req), reason);
+  if (authApi === 'not_found') {
+    return res.status(404).json({
+      error: 'Ese baneo ya no existe o pertenece a otro sistema. Si es de otro sistema, contacta al administrador de la API.',
+      code: 'ban_not_found',
+    });
+  }
+  if (authApi !== 'ok') {
+    return res
+      .status(IDENTITY_ACTION_STATUS[authApi])
+      .json({ error: SYSTEM_ADMIN_MESSAGES[authApi], code: `auth_api_${authApi}` });
+  }
+  res.status(204).end();
 }));
 
 // GET /api/auth-users?page=&page_size=&q=  (solo superadmin)

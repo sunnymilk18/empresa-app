@@ -20,6 +20,8 @@ const ACTION_LABELS = {
   pin_reset: 'PIN reseteado (por un admin)',
   password_reset_sent: 'Código para restablecer contraseña enviado (por un admin)',
   email_change_requested: 'Corrección de correo iniciada (por un admin)',
+  lockouts_cleared: 'Bloqueo por intentos quitado (por un admin)',
+  ip_ban_lifted: 'Baneo de IP levantado (por un admin)',
   pin_set: 'PIN creado',
   pin_changed: 'PIN cambiado',
 };
@@ -134,6 +136,12 @@ function describe(entry, onShowReason) {
       return <>inició la corrección del correo de <strong>{target}</strong> a <strong>{entry.details.new_email}</strong>{reasonNote(entry.details.reason, onShowReason)}</>;
     case 'password_reset_sent':
       return <>le envió a <strong>{target}</strong> el código para restablecer su contraseña{reasonNote(entry.details.reason, onShowReason)}</>;
+    case 'lockouts_cleared': {
+      const what = { login: 'de contraseña', pin: 'del PIN' }[entry.details.which] ?? 'de contraseña y PIN';
+      return <>le quitó a <strong>{target}</strong> el bloqueo por intentos {what}{reasonNote(entry.details.reason, onShowReason)}</>;
+    }
+    case 'ip_ban_lifted':
+      return <>levantó el baneo de la conexión <strong>{entry.details.ip}</strong>{reasonNote(entry.details.reason, onShowReason)}</>;
     // Acciones de la persona sobre su propia cuenta.
     case 'totp_enabled':
       return <>activó la app autenticadora en su cuenta</>;

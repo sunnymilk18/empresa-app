@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { blockConfirmText, pendingText } from '../utils/moderation';
@@ -25,6 +25,21 @@ export function UserSecurityActions({ user, onUserChange }) {
   const isMe = user.auth_user_id === profile?.id;
   const moderationEnabled = Boolean(profile?.features?.authApiModeration);
   const pinEnforced = Boolean(profile?.features?.adminPin);
+
+  // Bloqueo por intentos fallidos (contraseña o PIN): solo se ofrece quitarlo si lo hay.
+  const [lockouts, setLockouts] = useState(null);
+  const lockoutsId = user.auth_user_id;
+  function loadLockouts() {
+    return api
+      .getUserLockouts(lockoutsId, accessToken)
+      .then(setLockouts)
+      .catch(() => setLockouts(null)); // es un extra: si falla, simplemente no se muestra
+  }
+  useEffect(() => {
+    if (isMe || !moderationEnabled) return;
+    loadLockouts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lockoutsId, isMe, moderationEnabled]);
 
   if (isMe) {
     return (
@@ -94,6 +109,18 @@ export function UserSecurityActions({ user, onUserChange }) {
       call: ({ reason, pin }) => api.sendUserPasswordReset(id, reason, pin, accessToken),
       success: 'Código enviado a su correo. Ella elegirá su nueva contraseña.',
     },
+    clearLockouts: {
+      title: 'Quitar bloqueo por intentos',
+      description: `¿Quitarle a ${user.email} el bloqueo por intentos fallidos? Podrá volver a intentar de inmediato. No se cierran sus sesiones ni se cambia su PIN.`,
+      confirmLabel: 'Quitar bloqueo',
+      askReason: true,
+      call: async ({ reason, pin }) => {
+        const res = await api.clearUserLockouts(id, 'all', reason, pin, accessToken);
+        loadLockouts();
+        return res;
+      },
+      success: 'Bloqueo por intentos quitado. Ya puede volver a intentar.',
+    },
     resetPin: {
       title: 'Resetear su PIN',
       description: `¿Resetear el PIN de ${user.email}? Se cerrarán sus sesiones y se revocarán sus dispositivos de confianza; creará un PIN nuevo al volver a entrar.`,
@@ -136,6 +163,17 @@ export function UserSecurityActions({ user, onUserChange }) {
     }
   }
 
+  // Texto de lo que está bloqueado y cuánto falta para que se libere solo.
+  const lockoutNotes = [];
+  if (moderationEnabled && lockouts) {
+    const left = (seconds) => {
+      const minutes = Math.max(Math.ceil(seconds / 60), 1);
+      return `se libera en ${minutes} ${minutes === 1 ? 'minuto' : 'minutos'}`;
+    };
+    if (lockouts.login?.locked) lockoutNotes.push(`Contraseña: ${left(lockouts.login.retry_after_seconds)}.`);
+    if (lockouts.pin?.locked) lockoutNotes.push(`PIN: ${left(lockouts.pin.retry_after_seconds)}.`);
+  }
+
   const blockHint = blocked
     ? 'Vuelve a permitirle entrar.'
     : moderationEnabled
@@ -160,6 +198,15 @@ export function UserSecurityActions({ user, onUserChange }) {
           {blocked ? 'Desbloquear' : 'Bloquear'}
         </button>
       </div>
+
+      {lockoutNotes.length > 0 && (
+        <div className="security-action security-action--pending">
+          <p className="warning">⚠ Bloqueada por intentos fallidos. {lockoutNotes.join(' ')}</p>
+          <button type="button" className="table-action" onClick={() => open('clearLockouts')}>
+            Quitar bloqueo
+          </button>
+        </div>
+      )}
 
       {pending && (
         <div className="security-action security-action--pending">

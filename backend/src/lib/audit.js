@@ -9,6 +9,8 @@ const config = require('../config');
 //    pin_reset (resetear el PIN de otra persona)
 //    password_reset_sent (le envió el código para restablecer su contraseña)
 //    email_change_requested (inició la corrección de su correo; details.new_email)
+//    lockouts_cleared (le quitó el bloqueo por intentos; details.which: login | pin | all)
+//  - de un superadmin sobre una IP (sin cuenta de destino): ip_ban_lifted (details.ip)
 //  - de una persona sobre su propia cuenta: totp_enabled, totp_disabled,
 //    pin_set (creó su PIN), pin_changed (lo cambió)
 // Inserta una fila de auditoría usando la conexión de la transacción en curso,
@@ -38,6 +40,8 @@ const AUDIT_ACTIONS = [
   'pin_reset',
   'password_reset_sent',
   'email_change_requested',
+  'lockouts_cleared',
+  'ip_ban_lifted',
   'pin_set',
   'pin_changed',
 ];

@@ -78,6 +78,23 @@ async function send(path, { method, body, token }) {
   }
 }
 
+// Mensaje para quien quedó bloqueado por la auth-api (403 con code 'ip_banned'):
+// hasta cuándo, y el código de referencia que puede darle a un administrador.
+function ipBannedMessage({ retry_after_seconds: seconds = 0, reference }) {
+  const until = new Date(Date.now() + seconds * 1000);
+  const sameDay = until.toDateString() === new Date().toDateString();
+  const when = until.toLocaleString('es-CL', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    ...(sameDay ? {} : { day: '2-digit', month: '2-digit' }),
+  });
+  return (
+    `Tu conexión está bloqueada temporalmente por demasiados intentos. Podrás volver a intentar ${sameDay ? 'a las' : 'el'} ${when}.` +
+    (reference ? ` Si necesitas entrar antes, contacta a un administrador y dale este código de referencia: ${reference}.` : '')
+  );
+}
+
 // Wrapper simple sobre fetch. Todo pasa por empresa-backend: el frontend
 // nunca llama directo a la auth-api ni conoce su API key.
 async function request(path, { method = 'GET', body, token } = {}) {
@@ -98,6 +115,8 @@ async function request(path, { method = 'GET', body, token } = {}) {
   } catch {
     // Respuesta que no es JSON (p. ej. una página de error de un proxy).
   }
+
+  if (res.status === 403 && data?.code === 'ip_banned') data.error = ipBannedMessage(data);
 
   if (!res.ok) {
     const error = new Error(data?.error || `Error ${res.status}`);
@@ -192,6 +211,21 @@ export const api = {
     const query = params.toString();
     return request(`/api/audit-log${query ? `?${query}` : ''}`, { token });
   },
+  // Bloqueos automáticos de la auth-api (solo superadmin). Los baneos por IP se listan y
+  // se levantan con motivo y PIN; los de una cuenta (intentos fallidos de contraseña o de
+  // PIN) se consultan en su detalle y se quitan con motivo y PIN.
+  listBans: (token) => request('/api/blacklist', { token }),
+  liftBan: (ip, reason, pin, token) =>
+    request('/api/blacklist/lift', { method: 'POST', body: { ip, reason, pin }, token }),
+  getUserLockouts: (authUserId, token) =>
+    request(`/api/local-users/${encodeURIComponent(authUserId)}/lockouts`, { token }),
+  clearUserLockouts: (authUserId, which, reason, pin, token) =>
+    request(`/api/local-users/${encodeURIComponent(authUserId)}/clear-lockouts`, {
+      method: 'POST',
+      body: { which, reason, pin },
+      token,
+    }),
+
   // Moderación en la auth-api (requiere AUTH_API_SYSTEM_ADMIN_TOKEN en el backend)
   // reason: obligatorio, queda en Actividad. pin: solo si el servidor lo exige (features.adminPin).
   revokeUserSessions: (authUserId, reason, pin, token) =>

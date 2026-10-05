@@ -22,6 +22,7 @@ import { ElegirMetodoPage } from './pages/ElegirMetodoPage';
 import { ConfigurarAppPage } from './pages/ConfigurarAppPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { UsuariosPage } from './pages/UsuariosPage';
+import { BloqueosPage } from './pages/BloqueosPage';
 import { UsuarioDetallePage } from './pages/UsuarioDetallePage';
 import { ActividadPage } from './pages/ActividadPage';
 import { CuentasRegistradasPage } from './pages/CuentasRegistradasPage';
@@ -124,6 +125,14 @@ export default function App() {
                 element={
                   <ProtectedRoute roles={['superadmin']} skeleton="list">
                     <CuentasRegistradasPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/bloqueos"
+                element={
+                  <ProtectedRoute roles={['superadmin']} skeleton="list">
+                    <BloqueosPage />
                   </ProtectedRoute>
                 }
               />

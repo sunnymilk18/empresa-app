@@ -178,6 +178,58 @@ async function systemAdminListUsers({ page, pageSize, q } = {}) {
   return { ok: true, data };
 }
 
+// Llamada a una ruta /system-admin/* con la credencial de este sistema, para las
+// que devuelven un cuerpo o aceptan uno (baneos por IP y bloqueos por intentos).
+// Nunca lanza: { ok: true, status, data } o { ok: false, reason } con
+// 'disabled' | 'unavailable' | 'unauthorized' | 'not_found' | 'bad_request'
+// (400: lo que se mandó no es válido, p. ej. una IP mal escrita).
+async function systemAdminCall(path, { method = 'GET', body } = {}) {
+  if (!config.authApiSystemAdminToken) return { ok: false, reason: 'disabled' };
+  let res;
+  try {
+    res = await authApiFetch(path, {
+      method,
+      headers: {
+        'X-System-Admin-Token': config.authApiSystemAdminToken,
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    return { ok: false, reason: 'unavailable' };
+  }
+  const text = await res.text().catch(() => '');
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = null;
+  }
+  if (res.status === 401) return { ok: false, reason: 'unauthorized' };
+  if (res.status === 404) return { ok: false, reason: 'not_found' };
+  if (res.status === 400) return { ok: false, reason: 'bad_request' };
+  if (!res.ok) return { ok: false, reason: 'unavailable' };
+  return { ok: true, status: res.status, data };
+}
+
+// IPs baneadas por la auth-api que este sistema generó ({ bans: [...] }).
+const systemAdminListBans = () => systemAdminCall('/system-admin/blacklist');
+
+// Levanta el baneo de una IP (solo si este sistema es su dueño; si no, not_found).
+const systemAdminLiftBan = (ip, reason) =>
+  systemAdminCall(`/system-admin/blacklist/${encodeURIComponent(ip)}`, { method: 'DELETE', body: { reason } });
+
+// Bloqueos por intentos fallidos de una cuenta: { login: {...}, pin: {...} }.
+const systemAdminGetLockouts = (authUserId) =>
+  systemAdminCall(`/system-admin/users/${encodeURIComponent(authUserId)}/lockouts`);
+
+// Pone en cero esos contadores ('login' | 'pin' | 'all'); no toca sesiones ni el PIN.
+const systemAdminClearLockouts = (authUserId, which) =>
+  systemAdminCall(`/system-admin/users/${encodeURIComponent(authUserId)}/clear-lockouts`, {
+    method: 'POST',
+    body: { which },
+  });
+
 // Texto para mostrar cuando una acción de moderación no se pudo aplicar.
 const SYSTEM_ADMIN_MESSAGES = {
   not_found: 'La cuenta ya no existe en el servicio de autenticación.',
@@ -186,6 +238,7 @@ const SYSTEM_ADMIN_MESSAGES = {
   unavailable: 'El servicio de autenticación no respondió. Intenta de nuevo en unos minutos.',
   invalid_email: 'El correo nuevo no tiene un formato válido.',
   email_in_use: 'Ese correo ya está en uso por otra cuenta de este sistema.',
+  bad_request: 'La auth-api rechazó los datos enviados.',
   disabled:
     'Esta acción requiere la credencial de administración del servicio de autenticación (AUTH_API_SYSTEM_ADMIN_TOKEN), que no está configurada.',
 };
@@ -199,5 +252,9 @@ module.exports = {
   systemAdminChangeEmail,
   systemAdminSetLoginPin,
   systemAdminListUsers,
+  systemAdminListBans,
+  systemAdminLiftBan,
+  systemAdminGetLockouts,
+  systemAdminClearLockouts,
   SYSTEM_ADMIN_MESSAGES,
 };

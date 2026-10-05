@@ -50,6 +50,7 @@ export function Navbar() {
             {profile?.features?.authApiModeration && (
               <Link to="/cuentas-registradas">Cuentas registradas</Link>
             )}
+            {profile?.features?.authApiModeration && <Link to="/bloqueos">Bloqueos</Link>}
           </>
         )}
       </div>

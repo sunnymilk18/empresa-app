@@ -274,6 +274,27 @@ que no lleva ninguna API key. Dos diferencias con la web:
 | POST / DELETE | `/api/auth/devices/:id/push` | con sesión | Activar / desactivar la aprobación por push en ese dispositivo |
 | POST | `/api/auth/login/push-answer` | con sesión | Responder desde el celular a un login pendiente de otro dispositivo |
 
+### Bloqueos automáticos de la auth-api (superadmin)
+
+La auth-api bloquea sola a quien se equivoca demasiado: una **IP** que dispara varias veces
+los límites queda baneada (24 h, 72 h y 7 días según reincidencia; el baneo vale para esa IP
+en todos los sistemas), y una **cuenta** queda bloqueada 15 minutos tras muchos intentos
+fallidos de contraseña o de PIN. El panel los muestra y permite levantarlos con motivo y PIN
+(quedan en Actividad). Requieren `AUTH_API_SYSTEM_ADMIN_TOKEN` y, para ver IPs reales, que el
+backend le mande la IP del usuario a la auth-api (ver `AUTH_API_URL` en `.env.example`).
+
+| Método | Endpoint | Quién | Para qué |
+|---|---|---|---|
+| GET | `/api/blacklist` | superadmin | IPs baneadas que generó este sistema: `{ bans: [{ ip, reference, banned_at, banned_until, level, strikes }] }` (fechas en segundos Unix) |
+| POST | `/api/blacklist/lift` | superadmin | Levanta el baneo de una IP con `{ ip, reason, pin }`. 404 `ban_not_found` si ya no existe o es de otro sistema |
+| GET | `/api/local-users/:authUserId/lockouts` | superadmin | Si la cuenta tiene bloqueo por intentos y cuánto falta: `{ login, pin }`, cada uno con `{ locked, retry_after_seconds }` |
+| POST | `/api/local-users/:authUserId/clear-lockouts` | superadmin | Quita ese bloqueo con `{ which: 'login' \| 'pin' \| 'all', reason, pin }`; no cierra sesiones ni toca el PIN. No sobre la propia cuenta |
+
+Quien queda baneado ve un 403 con `code: "ip_banned"`, el tiempo que falta y un código de
+`reference`: el frontend se lo muestra para que se lo dé a un administrador, que lo ve en
+**Bloqueos**. Las IPs de confianza que nunca se banean las administra solo el operador de la
+auth-api.
+
 ### PIN obligatorio al iniciar sesión (por rol)
 
 Con `LOGIN_PIN_ROLES=superadmin,admin` (lista de roles: `superadmin`, `admin` y/o `user`), esos roles tienen un tercer paso en el login:

@@ -1,6 +1,12 @@
 const db = require('../db');
 const { logAction } = require('./audit');
-const { systemAdminAction, systemAdminChangeEmail, callAuthApi } = require('./authApi');
+const {
+  systemAdminAction,
+  systemAdminChangeEmail,
+  systemAdminLiftBan,
+  systemAdminClearLockouts,
+  callAuthApi,
+} = require('./authApi');
 
 const ROLES = ['superadmin', 'admin', 'user'];
 
@@ -306,6 +312,35 @@ async function listLocalUsers({ q, role, status, limit = 20, offset = 0 } = {}) 
   return { users: rows.map(({ total_count, ...user }) => user), total };
 }
 
+// Le quita a una cuenta el bloqueo por intentos fallidos ('login' | 'pin' | 'all'):
+// pone en cero esos contadores en la auth-api, sin tocar sus sesiones ni su PIN.
+// Se registra en la actividad (con su motivo) solo si la auth-api lo aplicó.
+// Devuelve { user, authApi: 'ok' | motivo del fallo } o null si no existe.
+async function clearAccountLockouts(authUserId, which, actor, reason) {
+  return db.transaction(async (query) => {
+    await waitAdminTurn(query);
+    const { rows } = await query('SELECT * FROM local_users WHERE auth_user_id = $1', [authUserId]);
+    const user = rows[0];
+    if (!user) return null;
+    await checkAdminChange(query, actor, user, false);
+
+    const res = await systemAdminClearLockouts(authUserId, which);
+    if (res.ok) await logAction(query, actor, 'lockouts_cleared', user, { which, reason });
+    return { user, authApi: res.ok ? 'ok' : res.reason };
+  });
+}
+
+// Levanta el baneo automático de una IP (solo existe si este sistema es su dueño).
+// No hay cuenta de destino: queda en la actividad con la IP y el motivo.
+// Devuelve { authApi: 'ok' | motivo del fallo }.
+async function liftIpBan(ip, actor, reason) {
+  return db.transaction(async (query) => {
+    const res = await systemAdminLiftBan(ip, reason);
+    if (res.ok) await logAction(query, actor, 'ip_ban_lifted', null, { ip, reason });
+    return { authApi: res.ok ? 'ok' : res.reason };
+  });
+}
+
 module.exports = {
   ROLES,
   AdminChangeError,
@@ -317,5 +352,7 @@ module.exports = {
   runIdentityAction,
   sendPasswordReset,
   requestEmailChange,
+  clearAccountLockouts,
+  liftIpBan,
   listLocalUsers,
 };
