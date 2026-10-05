@@ -6,7 +6,7 @@ import { SkyOpening } from './SkyOpening';
 
 // Pantallas por las que pasa quien acaba de iniciar sesión (código, push,
 // elegir método, configurar app). En cualquier otra, el día se apaga.
-const AUTH_FLOW = ['/login', '/verify-otp', '/aprobar-celular', '/elegir-metodo', '/configurar-app'];
+const AUTH_FLOW = ['/login', '/verify-otp', '/aprobar-celular', '/elegir-metodo', '/configurar-app', '/pin-login'];
 const FADE_OUT_MS = 800;
 
 // Fondo global del "amanecer" (cielo, nubes, aves, sol y paisaje). Vive fuera de
