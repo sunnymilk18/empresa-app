@@ -9,6 +9,12 @@ import logo from '../assets/logo-muni.png';
 
 const ICON_PROPS = { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true };
 
+// Los mensajes de la API vienen en minúscula y sin punto final.
+function sentence(text) {
+  const t = text.trim();
+  return t.charAt(0).toUpperCase() + t.slice(1) + (/[.!?]$/.test(t) ? '' : '.');
+}
+
 export function LoginPage() {
   const navigate = useNavigate();
   const { leaving, linkProps } = useLeave();
@@ -18,9 +24,6 @@ export function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  // Credenciales rechazadas (401): puede ser alguien a quien un admin le corrigió el correo
-  // y aún no lo confirmó; se le indica dónde (solo en ese caso, no en el login de todos).
-  const [rejected, setRejected] = useState(false);
   const [loading, setLoading] = useState(false);
   // Al iniciar sesión bien, amanece (ver DawnBackdrop) antes de cambiar de pantalla,
   // y el día se queda de fondo en las pantallas del segundo factor.
@@ -31,7 +34,6 @@ export function LoginPage() {
     e.preventDefault();
     if (loading) return; // la espera del amanecer deja una ventana para un segundo Enter
     setError('');
-    setRejected(false);
     setLoading(true);
     try {
       const res = await api.login({ identifier, password });
@@ -53,7 +55,6 @@ export function LoginPage() {
       }
     } catch (err) {
       setError(err.data?.error || err.message);
-      setRejected(err.status === 401);
     } finally {
       setLoading(false);
     }
@@ -119,17 +120,7 @@ export function LoginPage() {
 
             <Link {...linkProps('/forgot-password')} className="auth-forgot">¿Olvidaste tu contraseña?</Link>
 
-            {error && (
-              <p className="error">
-                {error}
-                {rejected && (
-                  <>
-                    {' '}Si un administrador te corrigió el correo,{' '}
-                    <Link {...linkProps('/confirmar-correo')}>confírmalo aquí</Link>.
-                  </>
-                )}
-              </p>
-            )}
+            {error && <p className="error">{sentence(error)}</p>}
 
             <button type="submit" disabled={loading}>
               {loading ? 'Entrando...' : 'Iniciar sesión'}
