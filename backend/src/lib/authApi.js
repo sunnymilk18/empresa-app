@@ -1,4 +1,19 @@
+const net = require('net');
+const { AsyncLocalStorage } = require('async_hooks');
 const config = require('../config');
+
+// IP real de quien hizo la petición que se está atendiendo (server.js la guarda
+// al entrar). Así authApiFetch la manda en X-Forwarded-For sin tener que pasarla
+// por cada llamada: sin esto, la auth-api vería siempre la IP de este backend y
+// sus límites por IP y su lista negra tratarían a todos como una sola persona.
+// La auth-api solo confía en ese header si la conexión viene de su red interna
+// (TRUSTED_PROXY_CIDRS), ver AUTH_API_URL en .env.example.
+const clientIpStore = new AsyncLocalStorage();
+
+// Middleware: guarda req.ip durante el resto de la petición (async incluido).
+function rememberClientIp(req, res, next) {
+  clientIpStore.run(req.ip, next);
+}
 
 // Error para cuando la auth-api no responde, tarda demasiado o devuelve algo
 // que no es JSON (p. ej. una página "502 Bad Gateway" de un proxy). El handler
@@ -14,9 +29,14 @@ class AuthApiUnavailableError extends Error {
 
 // fetch hacia la auth-api con tiempo máximo de espera.
 async function authApiFetch(path, options = {}) {
+  const ip = clientIpStore.getStore();
   try {
     return await fetch(`${config.authApiUrl}${path}`, {
       ...options,
+      headers: {
+        ...(net.isIP(ip) ? { 'X-Forwarded-For': ip } : {}),
+        ...options.headers,
+      },
       signal: AbortSignal.timeout(config.authApiTimeoutMs),
     });
   } catch (err) {
@@ -173,6 +193,7 @@ const SYSTEM_ADMIN_MESSAGES = {
 module.exports = {
   AuthApiUnavailableError,
   authApiFetch,
+  rememberClientIp,
   callAuthApi,
   systemAdminAction,
   systemAdminChangeEmail,

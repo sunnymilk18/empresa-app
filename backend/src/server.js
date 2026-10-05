@@ -3,7 +3,7 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const config = require('./config');
 const db = require('./db');
-const { AuthApiUnavailableError } = require('./lib/authApi');
+const { AuthApiUnavailableError, rememberClientIp } = require('./lib/authApi');
 const { AdminChangeError } = require('./lib/localUsers');
 const { scheduleRetention } = require('./lib/retention');
 
@@ -16,6 +16,7 @@ const app = express();
 // X-Forwarded-For; sin esto req.ip sería siempre la del proxy y el historial
 // de inicios de sesión guardaría esa. Un solo salto de confianza.
 app.set('trust proxy', 1);
+app.use(rememberClientIp);
 
 // credentials: true porque el refresh_token viaja en una cookie httpOnly
 // (ver routes/auth.js) — el navegador solo la manda entre orígenes si el
